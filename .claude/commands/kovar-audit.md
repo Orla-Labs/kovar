@@ -12,4 +12,4 @@ Analyze the user's Playwright test files and suggest security assertions to add.
    - Suggest adding `await expect(page).toBeResilientToXSS({ selector: 'form' })`
 4. Show a summary of how many tests could benefit from security checks
 
-Import from 'kovar' instead of '@playwright/test' in the suggestions.
+Import from '@orlalabs/kovar' instead of '@playwright/test' in the suggestions.

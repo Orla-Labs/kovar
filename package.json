@@ -1,5 +1,5 @@
 {
-	"name": "kovar",
+	"name": "@orlalabs/kovar",
 	"version": "0.1.0",
 	"description": "Security testing assertions for Playwright",
 	"license": "Apache-2.0",

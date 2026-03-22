@@ -9,7 +9,7 @@
 - Extensible audit system via `registerAuditCheck()` -- custom checks can register without modifying `audit()`
 - `checks` option in `AuditOptions` for explicit check selection (e.g., `audit({ checks: ["headers", "cookies"] })`)
 - `CheckFacade` exported from main entry for external use
-- `isReflectedUnescaped()` exported from `kovar/core` for standalone XSS detection logic
+- `isReflectedUnescaped()` exported from `@orlalabs/kovar/core` for standalone XSS detection logic
 - Unit tests for `isReflectedUnescaped()` -- 13 test cases covering the full truth table
 - Comprehensive README rewrite: security module guide, recorder guide, practical examples, CLI reference, confidence level tables
 

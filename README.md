@@ -3,7 +3,7 @@
 Security testing assertions + AI-powered test recording for Playwright. Add security checks to your E2E tests without being a security expert, and record browser sessions that generate production-grade Page Object Model tests.
 
 ```
-npm install -D kovar
+npm install -D @orlalabs/kovar
 ```
 
 ---
@@ -39,7 +39,7 @@ npm install -D kovar
 Replace your Playwright import with Kovar -- everything else stays the same:
 
 ```typescript
-import { test, expect } from "kovar"; // was: '@playwright/test'
+import { test, expect } from "@orlalabs/kovar"; // was: '@playwright/test'
 
 test("login page has secure headers", async ({ page }) => {
   const response = await page.goto("/login");
@@ -62,7 +62,7 @@ Kovar's security module checks three categories: **HTTP headers**, **cookie flag
 import { test, expect } from "@playwright/test";
 
 // With this:
-import { test, expect } from "kovar";
+import { test, expect } from "@orlalabs/kovar";
 ```
 
 That's it. Your existing tests still work, and you now have access to security matchers and the `security` fixture.
@@ -197,7 +197,7 @@ The `security` fixture gives programmatic access to checks with two modes:
 - **`.check()`** -- returns all findings without throwing, so you can inspect them
 
 ```typescript
-import { test, expect } from "kovar";
+import { test, expect } from "@orlalabs/kovar";
 
 test("verify security after login", async ({ page, security }) => {
   await page.goto("/login");
@@ -268,7 +268,7 @@ Use Kovar's check functions outside the Playwright test runner -- in scripts, CI
 
 ```typescript
 import { chromium } from "playwright";
-import { analyzeHeaders, analyzeCookies, mapPlaywrightCookies, XSSScanner } from "kovar/core";
+import { analyzeHeaders, analyzeCookies, mapPlaywrightCookies, XSSScanner } from "@orlalabs/kovar/core";
 
 const browser = await chromium.launch();
 const context = await browser.newContext();
@@ -318,7 +318,7 @@ Add the Kovar reporter to your Playwright config for a security summary after ea
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  reporter: [["list"], ["kovar/reporter"]],
+  reporter: [["list"], ["@orlalabs/kovar/reporter"]],
 });
 ```
 
@@ -345,7 +345,7 @@ Scoring: -20 per critical, -10 per high, -5 per medium, -2 per low.
 **Add security checks to an existing login test:**
 
 ```typescript
-import { test, expect } from "kovar";
+import { test, expect } from "@orlalabs/kovar";
 
 test("user can log in", async ({ page, context, security }) => {
   // Your existing test logic
@@ -365,7 +365,7 @@ test("user can log in", async ({ page, context, security }) => {
 
 ```typescript
 // tests/security.spec.ts
-import { test, expect } from "kovar";
+import { test, expect } from "@orlalabs/kovar";
 
 const PAGES = ["/", "/login", "/dashboard", "/settings", "/api/health"];
 
@@ -563,7 +563,7 @@ With the `--source` flag, Kovar maps UI elements back to their source components
 
 ```typescript
 // vite.config.ts
-import { kovarSourcePlugin } from "kovar/vite";
+import { kovarSourcePlugin } from "@orlalabs/kovar/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -575,7 +575,7 @@ export default defineConfig({
 
 ```javascript
 // next.config.js
-const { withKovar } = require("kovar/next");
+const { withKovar } = require("@orlalabs/kovar/next");
 
 module.exports = withKovar({
   // your existing config
@@ -587,7 +587,7 @@ Then create a `.babelrc` in your project root:
 ```json
 {
   "presets": ["next/babel"],
-  "plugins": ["kovar/babel"]
+  "plugins": ["@orlalabs/kovar/babel"]
 }
 ```
 
