@@ -42,6 +42,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      - run: npm run build
       - run: npm install -D @playwright/test@${{ matrix.playwright-version }}
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test

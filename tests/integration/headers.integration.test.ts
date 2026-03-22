@@ -1,5 +1,5 @@
 import type { Server } from "node:http";
-import { expect, test } from "../../src/index.js";
+import { expect, test } from "../../dist/index.js";
 import { startServer } from "./fixtures/test-server.js";
 
 let server: Server;
