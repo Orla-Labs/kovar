@@ -1,0 +1,55 @@
+import { defineConfig } from "tsup";
+
+export default defineConfig([
+	{
+		entry: {
+			index: "src/index.ts",
+			core: "src/core.ts",
+			"reporter/security-reporter": "src/reporter/security-reporter.ts",
+		},
+		format: ["esm", "cjs"],
+		dts: true,
+		splitting: true,
+		clean: true,
+		sourcemap: true,
+		treeshake: true,
+		target: "node18",
+		outDir: "dist",
+		external: ["@playwright/test"],
+	},
+	{
+		entry: { cli: "src/cli.ts" },
+		format: ["esm"],
+		dts: false,
+		clean: false,
+		sourcemap: true,
+		treeshake: true,
+		target: "node18",
+		outDir: "dist",
+		external: [
+			"@playwright/test",
+			"playwright",
+			"@babel/parser",
+			"@babel/traverse",
+			"@babel/generator",
+			"@babel/types",
+		],
+		banner: { js: "#!/usr/bin/env node" },
+	},
+	{
+		entry: {
+			"plugins/vite": "src/plugins/vite.ts",
+			"plugins/next": "src/plugins/next.ts",
+			"plugins/babel": "src/plugins/babel.ts",
+			"source/parser": "src/source/parser.ts",
+		},
+		format: ["esm", "cjs"],
+		dts: true,
+		clean: false,
+		sourcemap: true,
+		treeshake: true,
+		target: "node18",
+		outDir: "dist",
+		external: ["@babel/parser", "@babel/traverse", "@babel/generator", "@babel/types", "vite"],
+	},
+]);

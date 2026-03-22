@@ -1,0 +1,130 @@
+{
+	"name": "kovar",
+	"version": "0.1.0",
+	"description": "Security testing assertions for Playwright",
+	"license": "Apache-2.0",
+	"type": "module",
+	"engines": {
+		"node": ">=18"
+	},
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		},
+		"./core": {
+			"import": {
+				"types": "./dist/core.d.ts",
+				"default": "./dist/core.js"
+			},
+			"require": {
+				"types": "./dist/core.d.cts",
+				"default": "./dist/core.cjs"
+			}
+		},
+		"./reporter": {
+			"import": {
+				"types": "./dist/reporter/security-reporter.d.ts",
+				"default": "./dist/reporter/security-reporter.js"
+			},
+			"require": {
+				"types": "./dist/reporter/security-reporter.d.cts",
+				"default": "./dist/reporter/security-reporter.cjs"
+			}
+		},
+		"./vite": {
+			"import": {
+				"types": "./dist/plugins/vite.d.ts",
+				"default": "./dist/plugins/vite.js"
+			},
+			"require": {
+				"types": "./dist/plugins/vite.d.cts",
+				"default": "./dist/plugins/vite.cjs"
+			}
+		},
+		"./next": {
+			"import": {
+				"types": "./dist/plugins/next.d.ts",
+				"default": "./dist/plugins/next.js"
+			},
+			"require": {
+				"types": "./dist/plugins/next.d.cts",
+				"default": "./dist/plugins/next.cjs"
+			}
+		},
+		"./babel": {
+			"import": {
+				"types": "./dist/plugins/babel.d.ts",
+				"default": "./dist/plugins/babel.js"
+			},
+			"require": {
+				"types": "./dist/plugins/babel.d.cts",
+				"default": "./dist/plugins/babel.cjs"
+			}
+		}
+	},
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"bin": {
+		"kovar": "./bin/kovar.js"
+	},
+	"files": ["dist", "bin", "LICENSE", "README.md"],
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:integration": "playwright test",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"typecheck": "tsc --noEmit",
+		"prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build"
+	},
+	"peerDependencies": {
+		"@playwright/test": ">=1.40.0"
+	},
+	"devDependencies": {
+		"@babel/generator": "^7.29.1",
+		"@babel/parser": "^7.29.2",
+		"@babel/traverse": "^7.29.0",
+		"@babel/types": "^7.29.0",
+		"@biomejs/biome": "^1.9.0",
+		"@playwright/test": "^1.50.0",
+		"@types/babel__generator": "^7.27.0",
+		"@types/babel__traverse": "^7.28.0",
+		"@types/express": "^5.0.0",
+		"@types/node": "^22.0.0",
+		"express": "^4.21.0",
+		"tsup": "^8.3.0",
+		"typescript": "^5.6.0",
+		"vitest": "^2.1.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Orla-Labs/kovar.git"
+	},
+	"homepage": "https://github.com/Orla-Labs/kovar#readme",
+	"bugs": {
+		"url": "https://github.com/Orla-Labs/kovar/issues"
+	},
+	"keywords": [
+		"playwright",
+		"security",
+		"testing",
+		"xss",
+		"headers",
+		"cookies",
+		"e2e",
+		"assertions",
+		"owasp",
+		"dast"
+	]
+}
