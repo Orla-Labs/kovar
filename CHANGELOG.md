@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.2.1] - 2026-03-23
+
+### Fixed
+- Replace `waitForTimeout` with event-based dialog waiting in DOM XSS scanner
+- Fix confidence=0 ambiguity in locator generator (use null for "use default")
+- Fix reporter scorecard padding with dynamic `padLine()` helper
+- Align `sanitizeResponseBody` patterns with codegen secret detection (api_key, private_key, client_secret, session_id, credential)
+- Sanitize non-string JSON values (numbers, booleans, null) for sensitive keys
+
+### Added
+- `delayBetweenPayloads` option in `XSSCheckOptions` for WAF-protected targets
+- `xss-no-forms` info finding when no forms are found (prevents silent false negatives)
+- `TestGenerator` class extracted from RecordingSession (independently testable)
+- `SelfHealer` class extracted from RecordingSession (independently testable)
+- Integration test for full code generation pipeline (session → prompt → LLM → validate → write)
+- Snapshot test for LLM prompt output (catches prompt regressions)
+- Unit tests for retry exhaustion, extractPOMCode edge cases, credential detection, URL replacement
+
+### Changed
+- RecordingSession refactored into composition of TestGenerator + SelfHealer
+- SelfHealer marked as `@internal` (not part of stable public API)
+
 ## [0.2.0] - 2026-03-22
 
 ### Added
