@@ -26,6 +26,7 @@ npm install -D @orlalabs/kovar
   - [Getting Started](#getting-started)
   - [What Gets Generated](#what-gets-generated)
   - [CLI Reference](#cli-reference)
+  - [Self-Healing (Beta)](#self-healing-beta)
   - [Codebase Awareness (Beta)](#codebase-awareness-beta)
   - [How the Recorder Works](#how-the-recorder-works)
   - [Recorder Tips](#recorder-tips)
@@ -537,6 +538,8 @@ kovar record <url> [options]
 | `--source <dir>` | `-s` | Source directory for codebase-aware locators | Off |
 | `--provider <name>` | | LLM provider: `anthropic` or `openai` | Auto-detect from env |
 | `--model <name>` | | LLM model override | `claude-sonnet-4-20250514` or `gpt-4o` |
+| `--heal` | | After generating tests, run them and use AI to fix failures | Off |
+| `--heal-attempts <n>` | | Maximum number of self-healing attempts | `3` |
 | `--help` | `-h` | Show help | |
 
 Examples:
@@ -553,7 +556,28 @@ kovar record https://your-app.com --source ./src
 
 # Use a specific provider/model
 kovar record https://your-app.com --provider openai --model gpt-4o
+
+# Record, then auto-fix any test failures
+kovar record https://your-app.com --heal
+
+# Allow up to 5 healing attempts
+kovar record https://your-app.com --heal --heal-attempts 5
 ```
+
+### Self-Healing (Beta)
+
+When you pass `--heal`, Kovar runs the generated test immediately after recording. If the test fails, it sends the failure output back to the AI, which rewrites the test code to fix the issue. This loop repeats up to `--heal-attempts` times (default: 3).
+
+```bash
+kovar record https://your-app.com --heal
+```
+
+Typical fixes the self-healing loop catches:
+- Incorrect or flaky locators (element not found, wrong role name)
+- Missing `await` or missing waits for navigation/network idle
+- Assertion mismatches (wrong expected text or URL pattern)
+
+Each healing attempt makes an additional LLM call, so costs scale with the number of retries. If the test still fails after all attempts, Kovar prints the last error and exits -- you can review and fix manually.
 
 ### Codebase Awareness (Beta)
 
@@ -653,7 +677,7 @@ Kovar is a **security regression testing** tool, not a comprehensive security sc
 - DOM-based XSS that doesn't trigger `alert()`
 - Stored XSS
 - Blind injection vulnerabilities (time-based, out-of-band)
-- CSRF token validation, CORS misconfiguration, open redirects (coming in v0.2)
+- CSRF token validation, CORS misconfiguration, open redirects (planned for a future release)
 - Authentication/session management flaws
 - Authorization/privilege escalation
 - Server-side vulnerabilities (SSRF, SSTI, deserialization)

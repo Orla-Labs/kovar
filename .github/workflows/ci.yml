@@ -15,6 +15,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      - run: npm run build:browser
       - run: npm run lint
       - run: npm run typecheck
 
@@ -29,6 +30,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
+      - run: npm run build:browser
       - run: npm run test
 
   integration-tests:

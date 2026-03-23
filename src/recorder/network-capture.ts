@@ -49,15 +49,19 @@ function sanitizeResponseBody(body: string): string {
 }
 
 export class NetworkCapture {
-	private pending = new Map<string, { request: Request; timestamp: number }>();
+	private pending = new Map<Request, { timestamp: number }>();
 	private completed: RecordedRequest[] = [];
+	private onResponse: ((request: RecordedRequest) => void) | null = null;
+
+	setOnResponse(callback: (request: RecordedRequest) => void): void {
+		this.onResponse = callback;
+	}
 
 	async attach(page: Page): Promise<void> {
 		page.on("request", (request) => {
 			const resourceType = request.resourceType();
 			if (!LOGGED_RESOURCE_TYPES.has(resourceType)) return;
-			this.pending.set(request.url() + request.method(), {
-				request,
+			this.pending.set(request, {
 				timestamp: Date.now(),
 			});
 		});
@@ -67,10 +71,9 @@ export class NetworkCapture {
 			const resourceType = request.resourceType();
 			if (!LOGGED_RESOURCE_TYPES.has(resourceType)) return;
 
-			const key = request.url() + request.method();
-			const pendingEntry = this.pending.get(key);
+			const pendingEntry = this.pending.get(request);
 			if (!pendingEntry) return;
-			this.pending.delete(key);
+			this.pending.delete(request);
 
 			if (this.completed.length >= MAX_REQUESTS) return;
 
@@ -85,7 +88,7 @@ export class NetworkCapture {
 				}
 			}
 
-			this.completed.push({
+			const recorded: RecordedRequest = {
 				timestamp: pendingEntry.timestamp,
 				method: request.method(),
 				url: request.url(),
@@ -99,12 +102,13 @@ export class NetworkCapture {
 				responseHeaders: maskHeaders(response.headers()),
 				responseBody,
 				duration: Date.now() - pendingEntry.timestamp,
-			});
+			};
+			this.completed.push(recorded);
+			this.onResponse?.(recorded);
 		});
 
 		page.on("requestfailed", (request) => {
-			const key = request.url() + request.method();
-			this.pending.delete(key);
+			this.pending.delete(request);
 		});
 	}
 

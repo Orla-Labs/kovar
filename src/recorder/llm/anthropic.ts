@@ -1,3 +1,4 @@
+import { LLMRequestError, fetchWithRetry } from "./retry.js";
 import type { LLMProvider, LLMResponse, PromptPayload } from "./types.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -13,10 +14,9 @@ export class AnthropicProvider implements LLMProvider {
 	) {}
 
 	async generate(payload: PromptPayload): Promise<LLMResponse> {
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 60000);
-		try {
-			const response = await fetch(API_URL, {
+		const response = await fetchWithRetry(
+			API_URL,
+			{
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
@@ -29,40 +29,42 @@ export class AnthropicProvider implements LLMProvider {
 					system: payload.systemPrompt,
 					messages: [{ role: "user", content: payload.userPrompt }],
 				}),
-				signal: controller.signal,
-			});
+			},
+			"Anthropic",
+		);
 
-			if (!response.ok) {
-				const body = await response.text();
-				let errorType = `HTTP ${response.status}`;
-				try {
-					const parsed = JSON.parse(body) as { error?: { type?: string; message?: string } };
-					if (parsed.error?.type) errorType = parsed.error.type;
-					if (parsed.error?.message) errorType += `: ${parsed.error.message}`;
-				} catch {
-					// Non-JSON error body — use status only to avoid leaking request content
-				}
-				throw new Error(`Anthropic API error (${response.status}): ${errorType}`);
+		if (!response.ok) {
+			const body = await response.text();
+			let errorType = `HTTP ${response.status}`;
+			try {
+				const parsed = JSON.parse(body) as { error?: { type?: string; message?: string } };
+				if (parsed.error?.type) errorType = parsed.error.type;
+				if (parsed.error?.message) errorType += `: ${parsed.error.message}`;
+			} catch {
+				// Non-JSON error body — use status only to avoid leaking request content
 			}
-
-			const data = (await response.json()) as {
-				content: { type: string; text: string }[];
-				usage: { input_tokens: number; output_tokens: number };
-			};
-
-			if (!Array.isArray(data.content) || data.content.length === 0) {
-				throw new Error("Anthropic API returned invalid response: missing content array");
-			}
-
-			const text = data.content.find((c) => c.type === "text")?.text ?? "";
-
-			return {
-				testCode: text,
-				testName: "",
-				tokensUsed: data.usage.input_tokens + data.usage.output_tokens,
-			};
-		} finally {
-			clearTimeout(timeout);
+			throw new LLMRequestError(
+				`Anthropic API error (${response.status}): ${errorType}`,
+				1,
+				response.status,
+			);
 		}
+
+		const data = (await response.json()) as {
+			content: { type: string; text: string }[];
+			usage: { input_tokens: number; output_tokens: number };
+		};
+
+		if (!Array.isArray(data.content) || data.content.length === 0) {
+			throw new Error("Anthropic API returned invalid response: missing content array");
+		}
+
+		const text = data.content.find((c) => c.type === "text")?.text ?? "";
+
+		return {
+			testCode: text,
+			testName: "",
+			tokensUsed: data.usage.input_tokens + data.usage.output_tokens,
+		};
 	}
 }

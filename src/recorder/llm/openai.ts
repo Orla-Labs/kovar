@@ -1,3 +1,4 @@
+import { LLMRequestError, fetchWithRetry } from "./retry.js";
 import type { LLMProvider, LLMResponse, PromptPayload } from "./types.js";
 
 const API_URL = "https://api.openai.com/v1/chat/completions";
@@ -12,10 +13,9 @@ export class OpenAIProvider implements LLMProvider {
 	) {}
 
 	async generate(payload: PromptPayload): Promise<LLMResponse> {
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 60000);
-		try {
-			const response = await fetch(API_URL, {
+		const response = await fetchWithRetry(
+			API_URL,
+			{
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
@@ -29,38 +29,40 @@ export class OpenAIProvider implements LLMProvider {
 						{ role: "user", content: payload.userPrompt },
 					],
 				}),
-				signal: controller.signal,
-			});
+			},
+			"OpenAI",
+		);
 
-			if (!response.ok) {
-				const body = await response.text();
-				let errorType = `HTTP ${response.status}`;
-				try {
-					const parsed = JSON.parse(body) as { error?: { type?: string; message?: string } };
-					if (parsed.error?.type) errorType = parsed.error.type;
-					if (parsed.error?.message) errorType += `: ${parsed.error.message}`;
-				} catch {
-					// Non-JSON error body — use status only to avoid leaking request content
-				}
-				throw new Error(`OpenAI API error (${response.status}): ${errorType}`);
+		if (!response.ok) {
+			const body = await response.text();
+			let errorType = `HTTP ${response.status}`;
+			try {
+				const parsed = JSON.parse(body) as { error?: { type?: string; message?: string } };
+				if (parsed.error?.type) errorType = parsed.error.type;
+				if (parsed.error?.message) errorType += `: ${parsed.error.message}`;
+			} catch {
+				// Non-JSON error body — use status only to avoid leaking request content
 			}
-
-			const data = (await response.json()) as {
-				choices: { message: { content: string } }[];
-				usage: { total_tokens: number };
-			};
-
-			if (!Array.isArray(data.choices) || data.choices.length === 0 || !data.choices[0]?.message) {
-				throw new Error("OpenAI API returned invalid response: missing choices or message");
-			}
-
-			return {
-				testCode: data.choices[0].message.content ?? "",
-				testName: "",
-				tokensUsed: data.usage.total_tokens,
-			};
-		} finally {
-			clearTimeout(timeout);
+			throw new LLMRequestError(
+				`OpenAI API error (${response.status}): ${errorType}`,
+				1,
+				response.status,
+			);
 		}
+
+		const data = (await response.json()) as {
+			choices: { message: { content: string } }[];
+			usage: { total_tokens: number };
+		};
+
+		if (!Array.isArray(data.choices) || data.choices.length === 0 || !data.choices[0]?.message) {
+			throw new Error("OpenAI API returned invalid response: missing choices or message");
+		}
+
+		return {
+			testCode: data.choices[0].message.content ?? "",
+			testName: "",
+			tokensUsed: data.usage.total_tokens,
+		};
 	}
 }

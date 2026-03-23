@@ -241,4 +241,143 @@ describe("generateLocator", () => {
 		expect(strategy.confidence).toBe(0.9);
 		expect(strategy.concerns).not.toContainEqual(expect.stringContaining("Source-verified"));
 	});
+
+	// ── Shadow DOM Tests ──
+
+	describe("shadow DOM support", () => {
+		it("generates chained locator through shadow host", () => {
+			const strategy = generateLocator(
+				makeElement({
+					role: "button",
+					ariaLabel: "Submit",
+					shadowHost: { tag: "custom-form" },
+					shadowDepth: 1,
+				}),
+			);
+			expect(strategy.primary).toBe(
+				"page.locator('custom-form').getByRole('button', { name: 'Submit' })",
+			);
+		});
+
+		it("uses testId as primary selector for shadow host", () => {
+			const strategy = generateLocator(
+				makeElement({
+					role: "button",
+					ariaLabel: "Save",
+					shadowHost: { tag: "my-component", testId: "my-widget" },
+					shadowDepth: 1,
+				}),
+			);
+			expect(strategy.primary).toBe(
+				`page.locator('[data-testid="my-widget"]').getByRole('button', { name: 'Save' })`,
+			);
+		});
+
+		it("uses shadow host id when available", () => {
+			const strategy = generateLocator(
+				makeElement({
+					testId: "inner-btn",
+					shadowHost: { tag: "x-panel", id: "main-panel" },
+					shadowDepth: 1,
+				}),
+			);
+			expect(strategy.primary).toBe("page.locator('#main-panel').getByTestId('inner-btn')");
+		});
+
+		it("handles nested shadow DOM (depth 2+) with correct chain", () => {
+			const strategy = generateLocator(
+				makeElement({
+					role: "link",
+					ariaLabel: "Help",
+					shadowHost: { tag: "inner-widget" },
+					shadowDepth: 2,
+				}),
+			);
+			expect(strategy.primary).toBe(
+				"page.locator('inner-widget').getByRole('link', { name: 'Help' })",
+			);
+			expect(strategy.concerns).toContainEqual("Element is inside shadow DOM (depth 2)");
+		});
+
+		it("reduces confidence for shadow DOM locators", () => {
+			const lightDom = generateLocator(makeElement({ role: "button", ariaLabel: "Click" }));
+			const shadowDom = generateLocator(
+				makeElement({
+					role: "button",
+					ariaLabel: "Click",
+					shadowHost: { tag: "x-button" },
+					shadowDepth: 1,
+				}),
+			);
+			expect(shadowDom.confidence).toBeLessThan(lightDom.confidence);
+		});
+	});
+
+	// ── Iframe Tests ──
+
+	describe("iframe support", () => {
+		it("generates frameLocator with iframe name", () => {
+			const strategy = generateLocator(
+				makeElement({
+					role: "textbox",
+					ariaLabel: "Card number",
+					frameName: "payment-frame",
+					frameSelector: 'iframe[name="payment-frame"]',
+				}),
+			);
+			expect(strategy.primary).toBe(
+				`page.frameLocator('iframe[name="payment-frame"]').getByRole('textbox', { name: 'Card number' })`,
+			);
+		});
+
+		it("generates frameLocator with CSS selector when no name", () => {
+			const strategy = generateLocator(
+				makeElement({
+					testId: "email-input",
+					frameSelector: "#embed-iframe",
+				}),
+			);
+			expect(strategy.primary).toBe(
+				"page.frameLocator('#embed-iframe').getByTestId('email-input')",
+			);
+		});
+
+		it("generates frameLocator with src pattern from frameUrl", () => {
+			const strategy = generateLocator(
+				makeElement({
+					role: "button",
+					ariaLabel: "Pay",
+					frameUrl: "https://pay.stripe.com/checkout",
+				}),
+			);
+			expect(strategy.primary).toBe(
+				`page.frameLocator('iframe[src*="/checkout"]').getByRole('button', { name: 'Pay' })`,
+			);
+		});
+
+		it("reduces confidence for iframe locators", () => {
+			const topFrame = generateLocator(makeElement({ role: "button", ariaLabel: "Click" }));
+			const inIframe = generateLocator(
+				makeElement({
+					role: "button",
+					ariaLabel: "Click",
+					frameName: "child",
+					frameSelector: 'iframe[name="child"]',
+				}),
+			);
+			expect(inIframe.confidence).toBeLessThan(topFrame.confidence);
+		});
+
+		it("includes iframe concern in concerns array", () => {
+			const strategy = generateLocator(
+				makeElement({
+					role: "button",
+					ariaLabel: "Submit",
+					frameName: "checkout",
+					frameSelector: 'iframe[name="checkout"]',
+				}),
+			);
+			expect(strategy.concerns).toContainEqual('Element is inside an iframe (name="checkout")');
+		});
+	});
 });

@@ -18,6 +18,31 @@ function escapeStr(str: string): string {
 	return str.replace(/'/g, "\\'");
 }
 
+function buildShadowHostSelector(host: NonNullable<CapturedElement["shadowHost"]>): string {
+	if (host.testId) return `[data-testid="${host.testId}"]`;
+	if (host.id) return `#${host.id}`;
+	if (host.className) {
+		const firstClass = host.className.trim().split(/\s+/)[0];
+		if (firstClass) return `${host.tag}.${firstClass}`;
+	}
+	return host.tag;
+}
+
+function buildFrameLocatorPrefix(element: CapturedElement): string | null {
+	if (!element.frameSelector && !element.frameName && !element.frameUrl) return null;
+	if (element.frameName) {
+		return `page.frameLocator('iframe[name="${escapeStr(element.frameName)}"]')`;
+	}
+	if (element.frameSelector) {
+		return `page.frameLocator('${escapeStr(element.frameSelector)}')`;
+	}
+	if (element.frameUrl) {
+		const url = new URL(element.frameUrl);
+		return `page.frameLocator('iframe[src*="${escapeStr(url.pathname)}"]')`;
+	}
+	return null;
+}
+
 export interface LocatorStrategy {
 	primary: string;
 	fallbacks: string[];
@@ -147,9 +172,32 @@ export function generateLocator(
 	const fallbacks: string[] = [];
 	let confidence = 0.9;
 
+	// Determine iframe prefix (frameLocator replaces 'page' as the root)
+	const framePrefix = buildFrameLocatorPrefix(element);
+	const isInIframe = framePrefix !== null;
+
+	// Determine shadow DOM prefix
+	const shadowHost = element.shadowHost;
+	const shadowDepth = element.shadowDepth ?? 0;
+	const isInShadow = shadowHost !== undefined && shadowHost !== null && shadowDepth > 0;
+
+	if (isInIframe) {
+		concerns.push(
+			`Element is inside an iframe${element.frameName ? ` (name="${element.frameName}")` : ""}`,
+		);
+		confidence -= 0.1;
+	}
+
+	if (isInShadow) {
+		concerns.push(`Element is inside shadow DOM (depth ${shadowDepth})`);
+		confidence -= 0.1;
+	}
+
 	if (sourceMetadata) {
 		const sourceResult = generateSourceAwareLocator(element, sourceMetadata);
-		if (sourceResult) return sourceResult;
+		if (sourceResult) {
+			return applyShadowAndFramePrefix(sourceResult, element, framePrefix, isInShadow);
+		}
 
 		if (sourceMetadata.ariaLabel) {
 			const src = `${sourceMetadata.filePath}:${sourceMetadata.line}`;
@@ -171,7 +219,7 @@ export function generateLocator(
 	}
 
 	const dom = generateDOMLocator(element, displayText, fallbacks);
-	const primary = dom.primary;
+	let primary = dom.primary;
 	if (dom.confidence !== 0) confidence = dom.confidence;
 	if (dom.concern) concerns.push(dom.concern);
 
@@ -180,6 +228,74 @@ export function generateLocator(
 	if (element.nearbyHeading && concerns.length > 0) {
 		concerns.push(`Located in section: "${element.nearbyHeading}"`);
 	}
+
+	// Apply shadow DOM locator chaining
+	if (isInShadow && shadowHost) {
+		const hostSelector = buildShadowHostSelector(shadowHost);
+		primary = rewriteLocatorWithShadowHost(primary, hostSelector);
+		for (let i = 0; i < fallbacks.length; i++) {
+			const fb = fallbacks[i];
+			if (fb) fallbacks[i] = rewriteLocatorWithShadowHost(fb, hostSelector);
+		}
+	}
+
+	// Apply iframe frameLocator prefix
+	if (isInIframe && framePrefix) {
+		primary = primary.replace(/^page\./, `${framePrefix}.`);
+		for (let i = 0; i < fallbacks.length; i++) {
+			const fb = fallbacks[i];
+			if (fb) fallbacks[i] = fb.replace(/^page\./, `${framePrefix}.`);
+		}
+	}
+
+	// Clamp confidence to [0, 1]
+	confidence = Math.max(0, Math.min(1, confidence));
+
+	return { primary, fallbacks, confidence, concerns };
+}
+
+function rewriteLocatorWithShadowHost(locator: string, hostSelector: string): string {
+	return locator.replace(/^page\./, `page.locator('${hostSelector}').`);
+}
+
+function applyShadowAndFramePrefix(
+	strategy: LocatorStrategy,
+	element: CapturedElement,
+	framePrefix: string | null,
+	isInShadow: boolean,
+): LocatorStrategy {
+	const shadowHost = element.shadowHost;
+	const shadowDepth = element.shadowDepth ?? 0;
+
+	let { primary } = strategy;
+	const fallbacks = [...strategy.fallbacks];
+	let { confidence } = strategy;
+	const concerns = [...strategy.concerns];
+
+	if (isInShadow && shadowHost) {
+		const hostSelector = buildShadowHostSelector(shadowHost);
+		primary = rewriteLocatorWithShadowHost(primary, hostSelector);
+		for (let i = 0; i < fallbacks.length; i++) {
+			const fb = fallbacks[i];
+			if (fb) fallbacks[i] = rewriteLocatorWithShadowHost(fb, hostSelector);
+		}
+		concerns.push(`Element is inside shadow DOM (depth ${shadowDepth})`);
+		confidence -= 0.1;
+	}
+
+	if (framePrefix) {
+		primary = primary.replace(/^page\./, `${framePrefix}.`);
+		for (let i = 0; i < fallbacks.length; i++) {
+			const fb = fallbacks[i];
+			if (fb) fallbacks[i] = fb.replace(/^page\./, `${framePrefix}.`);
+		}
+		concerns.push(
+			`Element is inside an iframe${element.frameName ? ` (name="${element.frameName}")` : ""}`,
+		);
+		confidence -= 0.1;
+	}
+
+	confidence = Math.max(0, Math.min(1, confidence));
 
 	return { primary, fallbacks, confidence, concerns };
 }

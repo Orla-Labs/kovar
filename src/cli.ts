@@ -30,6 +30,8 @@ function parseCliArgs() {
 			source: { type: "string", short: "s" },
 			provider: { type: "string" },
 			model: { type: "string" },
+			heal: { type: "boolean", default: false },
+			"heal-attempts": { type: "string", default: "3" },
 			help: { type: "boolean", short: "h" },
 		},
 	});
@@ -67,6 +69,8 @@ async function executeCommand(
 		sourceDir: values.source as string | undefined,
 		provider: values.provider as "anthropic" | "openai" | undefined,
 		model: values.model as string | undefined,
+		heal: values.heal as boolean | undefined,
+		healAttempts: Number.parseInt((values["heal-attempts"] as string) ?? "3", 10),
 	});
 
 	try {
@@ -99,12 +103,14 @@ function printUsage() {
     record <url>    Open a browser, record your actions, generate a Playwright test
 
   Options:
-    -o, --output    Output directory (default: ./tests)
-    -n, --name      Test file name (default: auto-generated from URL)
-    -s, --source    Source directory for codebase-aware locator generation
-    --provider      LLM provider: anthropic or openai (default: auto-detect from env)
-    --model         LLM model (default: claude-sonnet-4-20250514 or gpt-4o)
-    -h, --help      Show this help message
+    -o, --output        Output directory (default: ./tests)
+    -n, --name          Test file name (default: auto-generated from URL)
+    -s, --source        Source directory for codebase-aware locator generation
+    --provider          LLM provider: anthropic or openai (default: auto-detect from env)
+    --model             LLM model (default: claude-sonnet-4-20250514 or gpt-4o)
+    --heal              Run generated test and auto-fix failures (up to 3 attempts)
+    --heal-attempts N   Max self-healing attempts (default: 3)
+    -h, --help          Show this help message
 
   Environment:
     ANTHROPIC_API_KEY   API key for Claude

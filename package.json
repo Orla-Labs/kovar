@@ -1,6 +1,6 @@
 {
 	"name": "@orlalabs/kovar",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Security testing assertions for Playwright",
 	"license": "Apache-2.0",
 	"type": "module",
@@ -77,8 +77,9 @@
 	},
 	"files": ["dist", "bin", "LICENSE", "README.md"],
 	"scripts": {
-		"build": "tsup",
-		"dev": "tsup --watch",
+		"build:browser": "tsx scripts/build-browser.ts",
+		"build": "npm run build:browser && tsup",
+		"dev": "npm run build:browser && tsup --watch",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:integration": "playwright test",
@@ -104,6 +105,7 @@
 		"@types/node": "^22.0.0",
 		"express": "^4.21.0",
 		"tsup": "^8.3.0",
+		"tsx": "^4.21.0",
 		"typescript": "^5.6.0",
 		"vitest": "^2.1.0"
 	},

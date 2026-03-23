@@ -17,6 +17,7 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
       - run: npm ci
+      - run: npm run build:browser
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test

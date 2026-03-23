@@ -24,10 +24,14 @@ Three-layer design:
 - `src/recorder/index.ts` — RecordingSession orchestrator
 - `src/recorder/llm/prompt.ts` — LLM system prompt for POM generation
 - `src/recorder/locator-generator.ts` — LocatorStrategy with confidence scoring
-- `src/recorder/action-capture.ts` — Browser-side JS injection for event capture
+- `src/recorder/action-capture.ts` — Node-side ActionCapture class, imports generated browser script
+- `src/recorder/assertion-detector.ts` — Node-side AssertionDetector class, imports generated browser script
+- `src/recorder/toolbar.ts` — Node-side Toolbar class, imports generated browser script
+- `src/recorder/browser/` — Typed browser modules (source of truth for browser-side logic)
+- `src/recorder/browser/*.entry.ts` — Browser entry points bundled into IIFEs at build time
+- `src/recorder/generated/` — Auto-generated IIFE script strings (gitignored, built by `npm run build:browser`)
 - `src/recorder/network-capture.ts` — Fetch/XHR interception with body limits
 - `src/recorder/codegen.ts` — Multi-file POM code generation + security validation
-- `src/recorder/toolbar.ts` — Shadow DOM toolbar overlay
 - `src/plugins/vite.ts` — Vite plugin injecting `data-kovar-source` attributes
 - `src/plugins/next.ts` — Next.js wrapper (disables SWC, enables Babel plugin)
 - `src/plugins/babel.ts` — Babel plugin entry point
@@ -38,7 +42,8 @@ Three-layer design:
 ## Commands
 
 ```bash
-npm run build          # Build ESM + CJS + DTS + CLI
+npm run build:browser  # Bundle browser entry points into IIFE strings
+npm run build          # Build browser scripts + ESM + CJS + DTS + CLI
 npm run test           # Unit tests (vitest)
 npm run test:integration  # Integration tests (playwright)
 npm run typecheck      # TypeScript strict check
@@ -52,7 +57,7 @@ npm run lint:fix       # Auto-fix lint issues
 - Biome for formatting (tabs, 100 char line width)
 - No unnecessary comments — code should be self-documenting
 - No runtime dependencies — only peer dep on @playwright/test
-- Browser-side code injected as template strings via page.evaluate/addInitScript
+- Browser-side code lives in typed modules under `src/recorder/browser/`, bundled into IIFE strings at build time via `scripts/build-browser.ts`
 - All security checks return SecurityFinding[] arrays
 - Matchers use ExpectMatcherState, return { pass, message, name, expected, actual }
 - Tests: vitest for unit, playwright for integration
@@ -70,9 +75,11 @@ npm run lint:fix       # Auto-fix lint issues
 2. Must include `depth` field (quick/standard/thorough)
 
 ### New recorder feature
-1. Browser-side changes go in ACTION_CAPTURE_SCRIPT string in `src/recorder/action-capture.ts`
-2. Type changes go in `src/recorder/types.ts`
-3. LLM prompt changes go in `src/recorder/llm/prompt.ts`
+1. Browser-side logic goes in typed modules under `src/recorder/browser/` (pure functions)
+2. Browser setup/glue code goes in `src/recorder/browser/*.entry.ts` (entry points for esbuild)
+3. Run `npm run build:browser` to regenerate `src/recorder/generated/` IIFE strings
+4. Type changes go in `src/recorder/types.ts`
+5. LLM prompt changes go in `src/recorder/llm/prompt.ts`
 
 ### New framework plugin
 1. Add plugin entry in `src/plugins/` (e.g., `src/plugins/webpack.ts`)

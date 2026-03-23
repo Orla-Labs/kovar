@@ -5,3 +5,9 @@ dist/
 coverage/
 test-results/
 playwright-report/
+.env
+.claude/settings.json
+.claude/settings.local.json
+
+# Generated browser scripts (built from src/recorder/browser/*.entry.ts)
+src/recorder/generated/

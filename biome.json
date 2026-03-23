@@ -49,7 +49,9 @@
 			"node_modules",
 			"test-results",
 			"playwright-report",
-			"tests/unit/source/fixtures"
+			"tests/unit/source/fixtures",
+			"src/recorder/generated",
+			"src/recorder/browser/*.entry.ts"
 		]
 	}
 }

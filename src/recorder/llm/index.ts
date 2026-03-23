@@ -3,6 +3,7 @@ import { OpenAIProvider } from "./openai.js";
 import type { LLMProvider } from "./types.js";
 
 export type { LLMProvider, LLMResponse, PromptPayload } from "./types.js";
+export { LLMRequestError } from "./retry.js";
 
 export function createLLMProvider(provider?: string, model?: string): LLMProvider {
 	const anthropicKey = process.env.ANTHROPIC_API_KEY;

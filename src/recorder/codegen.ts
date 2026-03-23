@@ -84,6 +84,16 @@ const DANGEROUS_PATTERNS = [
 	/\bimport\s*\(/,
 	/\bFunction\s*\(/,
 	/process\.exit/,
+	/\bglobalThis\b/,
+	/\bnew\s+Proxy\b/,
+	/\bnew\s+WebSocket\b/,
+	// Data exfiltration via beacon API — never legitimate in test runner context
+	/\bnavigator\.sendBeacon\b/,
+	// Cookie/storage access at test runner level — legitimate only inside page.evaluate()
+	// which operates in the browser context, not the Node.js test runner
+	/\bdocument\.cookie\b/,
+	/\blocalStorage\b/,
+	/\bsessionStorage\b/,
 ];
 
 function hasDangerousPatterns(code: string): boolean {
@@ -124,13 +134,22 @@ function detectCredentialVars(pages: string, spec: string): string[] {
 	if (/TEST_PHONE|process\.env\.TEST_PHONE/.test(combined)) vars.push("TEST_PHONE=your-phone");
 	if (/TEST_USERNAME|process\.env\.TEST_USERNAME/.test(combined))
 		vars.push("TEST_USERNAME=your-username");
+	if (/API_TOKEN|process\.env\.API_TOKEN/.test(combined)) vars.push("API_TOKEN=your-api-token");
+	if (/SECRET_KEY|process\.env\.SECRET_KEY/.test(combined)) vars.push("SECRET_KEY=your-secret-key");
+	if (/ACCESS_KEY|process\.env\.ACCESS_KEY/.test(combined)) vars.push("ACCESS_KEY=your-access-key");
+	if (/AUTH_TOKEN|process\.env\.AUTH_TOKEN/.test(combined)) vars.push("AUTH_TOKEN=your-auth-token");
+	if (/API_SECRET|process\.env\.API_SECRET/.test(combined)) vars.push("API_SECRET=your-api-secret");
+	if (/CLIENT_SECRET|process\.env\.CLIENT_SECRET/.test(combined))
+		vars.push("CLIENT_SECRET=your-client-secret");
+	if (/PRIVATE_KEY|process\.env\.PRIVATE_KEY/.test(combined))
+		vars.push("PRIVATE_KEY=your-private-key");
 	return vars;
 }
 
 export function sanitizeTestName(name: string): string {
 	return (
 		name
-			.replace(/[^a-z0-9._-]/gi, "-")
+			.replace(/[^a-z0-9_-]/gi, "-")
 			.replace(/-{2,}/g, "-")
 			.replace(/^-|-$/g, "")
 			.toLowerCase() || "recorded-test"

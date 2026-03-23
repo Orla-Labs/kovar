@@ -137,6 +137,56 @@ const page = something;`;
 	});
 });
 
+describe("validateCode — data exfiltration patterns", () => {
+	it("returns false for code containing navigator.sendBeacon", () => {
+		expect(
+			validateCode("import { x } from 'y'; navigator.sendBeacon('/log', data); page.x();"),
+		).toBe(false);
+	});
+
+	it("returns false for code containing document.cookie", () => {
+		expect(validateCode("import { x } from 'y'; const c = document.cookie; page.x();")).toBe(false);
+	});
+
+	it("returns false for code containing localStorage", () => {
+		expect(validateCode("import { x } from 'y'; localStorage.setItem('k', 'v'); page.x();")).toBe(
+			false,
+		);
+	});
+
+	it("returns false for code containing sessionStorage", () => {
+		expect(validateCode("import { x } from 'y'; sessionStorage.getItem('k'); page.x();")).toBe(
+			false,
+		);
+	});
+});
+
+describe("validateSpecCode — data exfiltration patterns", () => {
+	it("returns false for spec code with navigator.sendBeacon", () => {
+		const code = `import { test, expect } from '@playwright/test';
+test('x', async ({ page }) => { navigator.sendBeacon('/exfil', data); expect(page).toBeTruthy(); });`;
+		expect(validateSpecCode(code)).toBe(false);
+	});
+
+	it("returns false for spec code with document.cookie", () => {
+		const code = `import { test, expect } from '@playwright/test';
+test('x', async ({ page }) => { const c = document.cookie; expect(page).toBeTruthy(); });`;
+		expect(validateSpecCode(code)).toBe(false);
+	});
+
+	it("returns false for spec code with localStorage", () => {
+		const code = `import { test, expect } from '@playwright/test';
+test('x', async ({ page }) => { localStorage.getItem('secret'); expect(page).toBeTruthy(); });`;
+		expect(validateSpecCode(code)).toBe(false);
+	});
+
+	it("returns false for spec code with sessionStorage", () => {
+		const code = `import { test, expect } from '@playwright/test';
+test('x', async ({ page }) => { sessionStorage.getItem('token'); expect(page).toBeTruthy(); });`;
+		expect(validateSpecCode(code)).toBe(false);
+	});
+});
+
 describe("testNameFromUrl", () => {
 	it("extracts path from URL as test name", () => {
 		expect(testNameFromUrl("https://example.com/checkout")).toBe("checkout");
