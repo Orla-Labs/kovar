@@ -1,19 +1,19 @@
 import type { Page } from "@playwright/test";
-import { TOOLBAR_SCRIPT } from "./generated/toolbar-script.js";
+import { getToolbarScript } from "./browser-scripts.js";
 import type { AssertionSuggestion } from "./types.js";
 
 export class Toolbar {
 	async attach(page: Page): Promise<void> {
-		await page.addInitScript(TOOLBAR_SCRIPT);
+		await page.addInitScript(getToolbarScript());
 		try {
-			await page.evaluate(TOOLBAR_SCRIPT);
+			await page.evaluate(getToolbarScript());
 		} catch {
 			// Page may not be ready yet, addInitScript will handle it
 		}
 
 		page.on("load", async () => {
 			try {
-				await page.evaluate(TOOLBAR_SCRIPT);
+				await page.evaluate(getToolbarScript());
 			} catch {
 				// Page may not be ready
 			}

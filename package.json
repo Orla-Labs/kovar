@@ -78,8 +78,8 @@
 	"files": ["dist", "bin", "LICENSE", "README.md"],
 	"scripts": {
 		"build:browser": "tsx scripts/build-browser.ts",
-		"build": "npm run build:browser && tsup",
-		"dev": "npm run build:browser && tsup --watch",
+		"build": "tsup && npm run build:browser",
+		"dev": "tsup && npm run build:browser",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:integration": "playwright test",

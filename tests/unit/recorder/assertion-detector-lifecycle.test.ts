@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../../../src/recorder/browser-scripts.js", () => ({
+	getAssertionDetectorScript: () => "// mock browser script",
+}));
+
 /**
  * Tests for AssertionDetector Node-side lifecycle from assertion-detector.ts.
  *

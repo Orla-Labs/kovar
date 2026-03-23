@@ -24,12 +24,13 @@ Three-layer design:
 - `src/recorder/index.ts` — RecordingSession orchestrator
 - `src/recorder/llm/prompt.ts` — LLM system prompt for POM generation
 - `src/recorder/locator-generator.ts` — LocatorStrategy with confidence scoring
-- `src/recorder/action-capture.ts` — Node-side ActionCapture class, imports generated browser script
-- `src/recorder/assertion-detector.ts` — Node-side AssertionDetector class, imports generated browser script
-- `src/recorder/toolbar.ts` — Node-side Toolbar class, imports generated browser script
+- `src/recorder/action-capture.ts` — Node-side ActionCapture class, loads browser script at runtime
+- `src/recorder/assertion-detector.ts` — Node-side AssertionDetector class, loads browser script at runtime
+- `src/recorder/toolbar.ts` — Node-side Toolbar class, loads browser script at runtime
+- `src/recorder/browser-scripts.ts` — Lazy loader for browser IIFE scripts from `dist/browser/`
 - `src/recorder/browser/` — Typed browser modules (source of truth for browser-side logic)
-- `src/recorder/browser/*.entry.ts` — Browser entry points bundled into IIFEs at build time
-- `src/recorder/generated/` — Auto-generated IIFE script strings (gitignored, built by `npm run build:browser`)
+- `src/recorder/browser/*.entry.ts` — Browser entry points bundled into standalone IIFEs at build time
+- `dist/browser/` — Built IIFE scripts shipped as separate files (not inlined into CLI bundle)
 - `src/recorder/network-capture.ts` — Fetch/XHR interception with body limits
 - `src/recorder/codegen.ts` — Multi-file POM code generation + security validation
 - `src/plugins/vite.ts` — Vite plugin injecting `data-kovar-source` attributes
@@ -77,7 +78,7 @@ npm run lint:fix       # Auto-fix lint issues
 ### New recorder feature
 1. Browser-side logic goes in typed modules under `src/recorder/browser/` (pure functions)
 2. Browser setup/glue code goes in `src/recorder/browser/*.entry.ts` (entry points for esbuild)
-3. Run `npm run build:browser` to regenerate `src/recorder/generated/` IIFE strings
+3. Run `npm run build:browser` to regenerate `dist/browser/` IIFE scripts
 4. Type changes go in `src/recorder/types.ts`
 5. LLM prompt changes go in `src/recorder/llm/prompt.ts`
 

@@ -1,4 +1,13 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const toolbarScript = readFileSync(resolve(__dirname, "../../../dist/browser/toolbar.js"), "utf-8");
+
+vi.mock("../../../src/recorder/browser-scripts.js", () => ({
+	getToolbarScript: () => toolbarScript,
+}));
+
 import { Toolbar } from "../../../src/recorder/toolbar.js";
 import type { AssertionSuggestion } from "../../../src/recorder/types.js";
 import { MockPage } from "../../helpers/mock-page.js";

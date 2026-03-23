@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { ACTION_CAPTURE_SCRIPT } from "./generated/action-capture-script.js";
+import { getActionCaptureScript } from "./browser-scripts.js";
 import type { RecordedAction } from "./types.js";
 
 /** Navigation dedup window in milliseconds. */
@@ -54,12 +54,12 @@ export class ActionCapture {
 			}
 		});
 
-		await page.addInitScript(ACTION_CAPTURE_SCRIPT);
+		await page.addInitScript(getActionCaptureScript());
 
 		// Inject capture script into existing child frames (iframes)
 		for (const frame of page.frames()) {
 			if (frame !== page.mainFrame()) {
-				frame.evaluate(ACTION_CAPTURE_SCRIPT).catch(() => {
+				frame.evaluate(getActionCaptureScript()).catch(() => {
 					// Ignore errors for cross-origin iframes
 				});
 			}
@@ -68,7 +68,7 @@ export class ActionCapture {
 		// Inject capture script into child frames after navigation
 		page.on("framenavigated", (frame) => {
 			if (frame !== page.mainFrame()) {
-				frame.evaluate(ACTION_CAPTURE_SCRIPT).catch(() => {
+				frame.evaluate(getActionCaptureScript()).catch(() => {
 					// Ignore errors for cross-origin iframes
 				});
 			}

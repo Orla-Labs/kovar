@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../../src/recorder/browser-scripts.js", () => ({
+	getActionCaptureScript: () => "// mock browser script",
+}));
+
 import { ActionCapture } from "../../../src/recorder/action-capture.js";
 import type { RecordedAction } from "../../../src/recorder/types.js";
 import { MockPage } from "../../helpers/mock-page.js";

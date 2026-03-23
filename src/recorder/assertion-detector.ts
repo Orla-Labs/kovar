@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { ASSERTION_DETECTOR_SCRIPT } from "./generated/assertion-detector-script.js";
+import { getAssertionDetectorScript } from "./browser-scripts.js";
 import type { AssertionSuggestion, RecordedRequest } from "./types.js";
 
 export class AssertionDetector {
@@ -34,7 +34,7 @@ export class AssertionDetector {
 			if (idx !== -1) this.suggestions.splice(idx, 1);
 		});
 
-		await page.addInitScript(ASSERTION_DETECTOR_SCRIPT);
+		await page.addInitScript(getAssertionDetectorScript());
 
 		// M3: Cleanup interval on page close / context destroyed
 		const cleanupOnClose = async () => {
