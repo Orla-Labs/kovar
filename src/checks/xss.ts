@@ -5,7 +5,7 @@ import type { PayloadDefinition } from "../types/payloads.js";
 
 const CANARY_PREFIX = "kovar-xss";
 const DEFAULT_API_TIMEOUT = 5000;
-const DEFAULT_DOM_TIMEOUT = 2000;
+const DEFAULT_DOM_TIMEOUT = 3000;
 
 interface FormInfo {
 	action: string;
@@ -99,15 +99,28 @@ export class XSSScanner {
 			: await this.discoverForms();
 
 		if (forms.length === 0) {
-			return { findings: [], payloadsTested: 0 };
+			return {
+				findings: [
+					{
+						id: "xss-no-forms",
+						category: "xss",
+						severity: "info",
+						message: "No forms found on the page to test for XSS",
+						remediation:
+							"Ensure the page has loaded and contains forms, or use the selector option to target a specific container",
+					},
+				],
+				payloadsTested: 0,
+			};
 		}
 
+		const delay = options?.delayBetweenPayloads ?? 0;
 		const findings: SecurityFinding[] = [];
 		for (const form of forms) {
 			const formFindings =
 				options?.apiFirst !== false
-					? await this.testViaAPI(form, payloads, options?.timeout)
-					: await this.testViaDOM(form, payloads, options?.timeout);
+					? await this.testViaAPI(form, payloads, options?.timeout, delay)
+					: await this.testViaDOM(form, payloads, options?.timeout, delay);
 			findings.push(...formFindings);
 		}
 
@@ -174,12 +187,16 @@ export class XSSScanner {
 		form: FormInfo,
 		payloads: PayloadDefinition[],
 		timeout?: number,
+		delayBetweenPayloads = 0,
 	): Promise<SecurityFinding[]> {
 		const findings: SecurityFinding[] = [];
 		for (const input of form.inputs) {
 			for (const payload of payloads) {
 				const finding = await this.testSinglePayloadViaAPI(form, input, payload, timeout);
 				if (finding) findings.push(finding);
+				if (delayBetweenPayloads > 0) {
+					await new Promise((resolve) => setTimeout(resolve, delayBetweenPayloads));
+				}
 			}
 		}
 		return findings;
@@ -228,6 +245,7 @@ export class XSSScanner {
 		form: FormInfo,
 		payloads: PayloadDefinition[],
 		timeout?: number,
+		delayBetweenPayloads = 0,
 	): Promise<SecurityFinding[]> {
 		const findings: SecurityFinding[] = [];
 		this.detectedPayloads.clear();
@@ -251,6 +269,9 @@ export class XSSScanner {
 				for (const payload of payloads) {
 					const finding = await this.testSinglePayloadViaDOM(input, payload, timeout);
 					if (finding) findings.push(finding);
+					if (delayBetweenPayloads > 0) {
+						await new Promise((resolve) => setTimeout(resolve, delayBetweenPayloads));
+					}
 				}
 			}
 		} finally {
@@ -267,12 +288,18 @@ export class XSSScanner {
 		timeout?: number,
 	): Promise<SecurityFinding | null> {
 		const expectedCanary = `${CANARY_PREFIX}-${payload.id}`;
+		const waitTime = timeout ?? DEFAULT_DOM_TIMEOUT;
 
 		try {
 			await this.page.fill(input.selector, payload.payload);
 			const submitButton = await this.page.$('button[type="submit"], input[type="submit"]');
 			if (submitButton) await submitButton.click();
-			await this.page.waitForTimeout(timeout ?? DEFAULT_DOM_TIMEOUT);
+
+			// Wait for dialog event instead of fixed timeout — resolves immediately on XSS hit
+			await Promise.race([
+				this.page.waitForEvent("dialog", { timeout: waitTime }).catch(() => {}),
+				new Promise((resolve) => setTimeout(resolve, waitTime)),
+			]);
 
 			if (this.detectedPayloads.has(expectedCanary)) {
 				return buildXSSFinding(

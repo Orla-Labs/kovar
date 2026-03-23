@@ -14,27 +14,23 @@ vi.mock("node:fs", () => ({
 	mkdirSync: vi.fn(),
 }));
 
-// We need to test the private methods runTest and healTest.
-// Since they are private on RecordingSession, we'll import the module
-// and access them through a constructed instance.
-// RecordingSession constructor needs a config with url and outputDir.
-
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { RecordingSession } from "../../../src/recorder/index.js";
+import { SelfHealer } from "../../../src/recorder/self-healer.js";
 
 const mockedExecFileSync = vi.mocked(execFileSync);
 const mockedReadFileSync = vi.mocked(readFileSync);
 const mockedExistsSync = vi.mocked(existsSync);
 const mockedWriteFileSync = vi.mocked(writeFileSync);
 
-function createSession(overrides: { healAttempts?: number; outputDir?: string } = {}) {
-	return new RecordingSession({
-		url: "https://example.com",
-		outputDir: overrides.outputDir ?? "./tests",
-		heal: true,
-		healAttempts: overrides.healAttempts ?? 3,
-	});
+function createHealer(overrides: { maxAttempts?: number; outputDir?: string } = {}) {
+	const provider = new MockLLMProvider();
+	const healer = new SelfHealer(
+		provider,
+		overrides.outputDir ?? "./tests",
+		overrides.maxAttempts ?? 3,
+	);
+	return { healer, provider };
 }
 
 function makeValidSpecResponse(code: string) {
@@ -52,12 +48,8 @@ describe("runTest", () => {
 
 	it("returns { passed: true } when execFileSync succeeds", () => {
 		mockedExecFileSync.mockReturnValue("");
-		const session = createSession();
-		// Access private method via bracket notation
-		const result = (session as unknown as Record<string, unknown>).runTest as (
-			specPath: string,
-		) => { passed: boolean; error: string };
-		const outcome = result.call(session, "./tests/my-test.spec.ts");
+		const { healer } = createHealer();
+		const outcome = healer.runTest("./tests/my-test.spec.ts");
 		expect(outcome.passed).toBe(true);
 		expect(outcome.error).toBe("");
 	});
@@ -68,11 +60,8 @@ describe("runTest", () => {
 		mockedExecFileSync.mockImplementation(() => {
 			throw err;
 		});
-		const session = createSession();
-		const runTest = (session as unknown as Record<string, unknown>).runTest as (
-			specPath: string,
-		) => { passed: boolean; error: string };
-		const outcome = runTest.call(session, "./tests/my-test.spec.ts");
+		const { healer } = createHealer();
+		const outcome = healer.runTest("./tests/my-test.spec.ts");
 		expect(outcome.passed).toBe(false);
 		expect(outcome.error).toContain("expected visible but element not found");
 	});
@@ -84,22 +73,16 @@ describe("runTest", () => {
 		mockedExecFileSync.mockImplementation(() => {
 			throw err;
 		});
-		const session = createSession();
-		const runTest = (session as unknown as Record<string, unknown>).runTest as (
-			specPath: string,
-		) => { passed: boolean; error: string };
-		const outcome = runTest.call(session, "./tests/my-test.spec.ts");
+		const { healer } = createHealer();
+		const outcome = healer.runTest("./tests/my-test.spec.ts");
 		expect(outcome.passed).toBe(false);
 		expect(outcome.error.length).toBe(2000);
 	});
 
 	it("passes correct args to execFileSync", () => {
 		mockedExecFileSync.mockReturnValue("");
-		const session = createSession();
-		const runTest = (session as unknown as Record<string, unknown>).runTest as (
-			specPath: string,
-		) => { passed: boolean; error: string };
-		runTest.call(session, "./tests/my-test.spec.ts");
+		const { healer } = createHealer();
+		healer.runTest("./tests/my-test.spec.ts");
 		expect(mockedExecFileSync).toHaveBeenCalledWith(
 			"npx",
 			["playwright", "test", "./tests/my-test.spec.ts", "--reporter=line"],
@@ -112,14 +95,12 @@ describe("runTest", () => {
 	});
 });
 
-describe("healTest", () => {
-	let provider: MockLLMProvider;
+describe("heal", () => {
 	let consoleSpy: ReturnType<typeof vi.spyOn>;
 	let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		provider = new MockLLMProvider();
 		consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 	});
@@ -131,14 +112,9 @@ describe("healTest", () => {
 
 	it("test passes on first attempt — no LLM calls made", async () => {
 		mockedExecFileSync.mockReturnValue("");
-		const session = createSession({ healAttempts: 3 });
-		const healTest = (session as unknown as Record<string, unknown>).healTest as (
-			specPath: string,
-			pagePath: string | null,
-			provider: MockLLMProvider,
-		) => Promise<void>;
+		const { healer, provider } = createHealer({ maxAttempts: 3 });
 
-		await healTest.call(session, "./tests/my-test.spec.ts", null, provider);
+		await healer.heal("./tests/my-test.spec.ts", null);
 
 		expect(provider.getCallCount()).toBe(0);
 		expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("test passed"));
@@ -163,16 +139,10 @@ describe("healTest", () => {
 
 		const validSpec =
 			"import { test, expect } from '@playwright/test';\ntest('fixed', async ({ page }) => { await expect(page).toHaveURL('/fixed'); });";
+		const { healer, provider } = createHealer({ maxAttempts: 3 });
 		provider.enqueueResponse(makeValidSpecResponse(validSpec));
 
-		const session = createSession({ healAttempts: 3 });
-		const healTest = (session as unknown as Record<string, unknown>).healTest as (
-			specPath: string,
-			pagePath: string | null,
-			provider: MockLLMProvider,
-		) => Promise<void>;
-
-		await healTest.call(session, "./tests/my-test.spec.ts", null, provider);
+		await healer.heal("./tests/my-test.spec.ts", null);
 
 		expect(provider.getCallCount()).toBe(1);
 		expect(mockedWriteFileSync).toHaveBeenCalled();
@@ -193,17 +163,11 @@ describe("healTest", () => {
 
 		const validSpec =
 			"import { test, expect } from '@playwright/test';\ntest('still-broken', async ({ page }) => { await expect(page).toHaveURL('/broken'); });";
+		const { healer, provider } = createHealer({ maxAttempts: 3 });
 		provider.enqueueResponse(makeValidSpecResponse(validSpec));
 		provider.enqueueResponse(makeValidSpecResponse(validSpec));
 
-		const session = createSession({ healAttempts: 3 });
-		const healTest = (session as unknown as Record<string, unknown>).healTest as (
-			specPath: string,
-			pagePath: string | null,
-			provider: MockLLMProvider,
-		) => Promise<void>;
-
-		await healTest.call(session, "./tests/my-test.spec.ts", null, provider);
+		await healer.heal("./tests/my-test.spec.ts", null);
 
 		// 3 attempts: attempt 1 fails -> LLM fix -> attempt 2 fails -> LLM fix -> attempt 3 fails -> done
 		expect(provider.getCallCount()).toBe(2);
@@ -225,20 +189,14 @@ describe("healTest", () => {
 		mockedExistsSync.mockReturnValue(true);
 
 		// Return invalid code (no test( pattern, no expect)
+		const { healer, provider } = createHealer({ maxAttempts: 3 });
 		provider.enqueueResponse({
 			testCode: "```typescript:spec\nconst x = 1;\n```",
 			testName: "bad-fix",
 			tokensUsed: 50,
 		});
 
-		const session = createSession({ healAttempts: 3 });
-		const healTest = (session as unknown as Record<string, unknown>).healTest as (
-			specPath: string,
-			pagePath: string | null,
-			provider: MockLLMProvider,
-		) => Promise<void>;
-
-		await healTest.call(session, "./tests/my-test.spec.ts", null, provider);
+		await healer.heal("./tests/my-test.spec.ts", null);
 
 		// Should have called LLM once, then bailed because validation failed
 		expect(provider.getCallCount()).toBe(1);

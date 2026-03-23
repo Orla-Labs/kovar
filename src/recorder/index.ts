@@ -1,8 +1,15 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { Browser } from "@playwright/test";
 import type { SourceMetadata } from "../source/types.js";
+import { ActionCapture } from "./action-capture.js";
+import { AssertionDetector } from "./assertion-detector.js";
+import { createLLMProvider } from "./llm/index.js";
+import { NetworkCapture } from "./network-capture.js";
+import { SelfHealer } from "./self-healer.js";
+import { TestGenerator } from "./test-generator.js";
+import { Toolbar } from "./toolbar.js";
+import type { RecorderConfig, SessionData } from "./types.js";
 
 async function lazyParseSourceLocation(
 	filePath: string,
@@ -16,23 +23,11 @@ async function lazyParseSourceLocation(
 		return null;
 	}
 }
-import { ActionCapture } from "./action-capture.js";
-import { AssertionDetector } from "./assertion-detector.js";
-import {
-	extractPOMCode,
-	testNameFromUrl,
-	validateCode,
-	validateSpecCode,
-	writeGeneratedFiles,
-	writeTestFile,
-} from "./codegen.js";
-import { createLLMProvider } from "./llm/index.js";
-import { buildFixPrompt, buildPrompt } from "./llm/prompt.js";
-import { NetworkCapture } from "./network-capture.js";
-import { Toolbar } from "./toolbar.js";
-import type { RecorderConfig, SessionData } from "./types.js";
 
 export type { RecorderConfig, SessionData } from "./types.js";
+export { TestGenerator } from "./test-generator.js";
+/** @internal Not part of the stable public API. */
+export { SelfHealer } from "./self-healer.js";
 
 const DEFAULT_IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_MAX_DURATION = 30 * 60 * 1000; // 30 minutes
@@ -72,13 +67,9 @@ export class RecordingSession {
 			args: ["--disable-blink-features=AutomationControlled"],
 		});
 
-		const cleanup = async () => {
-			await browser.close();
-		};
-
 		const sigintHandler = async () => {
 			console.log("\n  ✦ Recording interrupted. Saving captured data...");
-			await cleanup();
+			await browser.close();
 			process.exit(0);
 		};
 
@@ -255,140 +246,16 @@ export class RecordingSession {
 			sourceMap = await this.resolveSourceMetadata(sessionData, sourceDir);
 		}
 
-		return this.generateTest(sessionData, sourceMap);
-	}
+		const provider = createLLMProvider(this.config.provider, this.config.model);
+		const generator = new TestGenerator(provider, this.config.outputDir);
+		const result = await generator.generate(sessionData, this.config.testName, sourceMap);
 
-	private async generateTest(
-		session: SessionData,
-		sourceMap?: Map<number, SourceMetadata>,
-	): Promise<string> {
-		const testName = this.config.testName || testNameFromUrl(session.startUrl);
-
-		console.log("  ✦ Generating Page Object Model test with AI...");
-
-		try {
-			const provider = createLLMProvider(this.config.provider, this.config.model);
-			const { system, user } = buildPrompt(session, testName, sourceMap);
-
-			const response = await provider.generate({
-				systemPrompt: system,
-				userPrompt: user,
-				maxTokens: 8192,
-			});
-
-			const { pages, spec } = extractPOMCode(response.testCode);
-
-			if (pages && !validateCode(pages)) {
-				throw new Error("Generated page object code failed validation");
-			}
-			if (!validateSpecCode(spec)) {
-				throw new Error("Generated spec code failed validation — missing required patterns");
-			}
-
-			const files = writeGeneratedFiles(
-				this.config.outputDir,
-				testName,
-				pages,
-				spec,
-				session.startUrl,
-			);
-
-			if (files.pagePath) console.log(`  ✦ Page object: ${files.pagePath}`);
-			console.log(`  ✦ Test spec:   ${files.specPath}`);
-			if (files.envExamplePath) console.log(`  ✦ Env example: ${files.envExamplePath}`);
-			console.log(`  ✦ Tokens used: ${response.tokensUsed}\n`);
-
-			// Self-healing loop
-			if (this.config.heal) {
-				await this.healTest(files.specPath, files.pagePath, provider);
-			}
-
-			return files.specPath;
-		} catch (error) {
-			const fallbackPath = writeTestFile(
-				this.config.outputDir,
-				`${testName}.recording`,
-				JSON.stringify(session, null, 2),
-			);
-			const message = error instanceof Error ? error.message : String(error);
-			console.error(`  ✗ LLM generation failed: ${message}`);
-			console.error(`  ✦ Raw recording saved: ${fallbackPath}`);
-			console.error("  ✦ You can retry later or use the recording data manually.\n");
-			return fallbackPath;
-		}
-	}
-
-	private async healTest(
-		specPath: string,
-		pagePath: string | null,
-		provider: ReturnType<typeof createLLMProvider>,
-	): Promise<void> {
-		const maxAttempts = this.config.healAttempts;
-
-		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			console.log(`  ✦ Self-heal: running test (attempt ${attempt}/${maxAttempts})...`);
-
-			const result = this.runTest(specPath);
-			if (result.passed) {
-				console.log("  ✦ Self-heal: test passed!\n");
-				return;
-			}
-
-			if (attempt === maxAttempts) {
-				console.warn(`  ⚠ Self-heal: test still failing after ${maxAttempts} attempts.`);
-				console.warn(`  ⚠ Error: ${result.error.slice(0, 200)}\n`);
-				return;
-			}
-
-			console.log("  ⚠ Self-heal: test failed, asking AI to fix...");
-
-			const specCode = readFileSync(specPath, "utf-8");
-			const pageCode = pagePath && existsSync(pagePath) ? readFileSync(pagePath, "utf-8") : null;
-
-			const { system, user } = buildFixPrompt(specCode, pageCode, result.error);
-			const response = await provider.generate({
-				systemPrompt: system,
-				userPrompt: user,
-				maxTokens: 8192,
-			});
-
-			const { pages, spec } = extractPOMCode(response.testCode);
-
-			if (spec && validateSpecCode(spec)) {
-				writeFileSync(specPath, `${spec}\n`, "utf-8");
-				if (pages && pagePath && validateCode(pages)) {
-					writeFileSync(pagePath, `${pages}\n`, "utf-8");
-				}
-				console.log(`  ✦ Self-heal: code updated (tokens: ${response.tokensUsed})`);
-			} else {
-				console.warn("  ⚠ Self-heal: LLM fix failed validation, stopping.");
-				return;
-			}
-		}
-	}
-
-	private runTest(specPath: string): { passed: boolean; error: string } {
-		const resolvedSpec = resolve(specPath);
-		const resolvedOutput = resolve(this.config.outputDir);
-		if (!resolvedSpec.startsWith(resolvedOutput)) {
-			throw new Error(
-				`Test path "${resolvedSpec}" is outside output directory "${resolvedOutput}"`,
-			);
+		if (this.config.heal) {
+			const healer = new SelfHealer(provider, this.config.outputDir, this.config.healAttempts);
+			await healer.heal(result.specPath, result.pagePath);
 		}
 
-		try {
-			execFileSync("npx", ["playwright", "test", specPath, "--reporter=line"], {
-				timeout: 60000,
-				stdio: "pipe",
-				encoding: "utf-8",
-				shell: process.platform === "win32",
-			});
-			return { passed: true, error: "" };
-		} catch (err) {
-			const error =
-				err instanceof Error ? (err as { stderr?: string }).stderr || err.message : String(err);
-			return { passed: false, error: error.slice(0, 2000) };
-		}
+		return result.specPath;
 	}
 
 	private async resolvePlaywright(): Promise<{ chromium: typeof import("playwright").chromium }> {

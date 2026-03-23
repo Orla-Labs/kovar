@@ -208,3 +208,125 @@ describe("testNameFromUrl", () => {
 		expect(testNameFromUrl("not-a-url")).toBe("recorded-test");
 	});
 });
+
+describe("extractPOMCode — edge cases", () => {
+	it("extracts both blocks when spec appears before pages", () => {
+		const response = `\`\`\`typescript:spec
+import { test, expect } from '@playwright/test';
+import { LoginPage } from './pages/login.page';
+test('login', async ({ page }) => {
+  const loginPage = new LoginPage(page);
+});
+\`\`\`
+
+\`\`\`typescript:pages
+import type { Page } from '@playwright/test';
+export class LoginPage {
+  constructor(private page: Page) {}
+  get emailInput() { return this.page.getByRole('textbox'); }
+}
+\`\`\``;
+
+		const result = extractPOMCode(response);
+		expect(result.pages).toContain("LoginPage");
+		expect(result.spec).toContain("test(");
+	});
+
+	it("throws when a code block has a missing closing fence", () => {
+		const response = `\`\`\`typescript:pages
+import type { Page } from '@playwright/test';
+export class LoginPage {
+  constructor(private page: Page) {}
+}`;
+
+		expect(() => extractPOMCode(response)).toThrow("did not contain TypeScript code blocks");
+	});
+
+	it("extracts correctly with extra markdown around blocks", () => {
+		const response = `# Generated Test
+
+Here is the page object:
+
+\`\`\`typescript:pages
+import type { Page } from '@playwright/test';
+export class CheckoutPage {
+  constructor(private page: Page) {}
+}
+\`\`\`
+
+And here is the spec:
+
+\`\`\`typescript:spec
+import { test, expect } from '@playwright/test';
+test('checkout', async ({ page }) => {
+  page.goto('/checkout');
+});
+\`\`\`
+
+Make sure to install dependencies first.`;
+
+		const result = extractPOMCode(response);
+		expect(result.pages).toContain("CheckoutPage");
+		expect(result.spec).toContain("test(");
+	});
+
+	it("extracts via alt labels when 'test' label is used instead of 'spec'", () => {
+		const response = `\`\`\`typescript:pages
+import type { Page } from '@playwright/test';
+export class DashboardPage {
+  constructor(private page: Page) {}
+}
+\`\`\`
+
+\`\`\`typescript:test
+import { test, expect } from '@playwright/test';
+test('dashboard', async ({ page }) => {
+  page.goto('/dashboard');
+});
+\`\`\``;
+
+		const result = extractPOMCode(response);
+		expect(result.pages).toContain("DashboardPage");
+		expect(result.spec).toContain("test(");
+	});
+});
+
+describe("validateSpecCode — hardcoded credentials", () => {
+	it("returns false for spec with hardcoded password", () => {
+		const code = `import { test, expect } from '@playwright/test';
+test('login', async ({ page }) => {
+  const password = "secret123";
+  await page.fill('#password', password);
+  await expect(page).toHaveURL('/dashboard');
+});`;
+		expect(validateSpecCode(code)).toBe(false);
+	});
+
+	it("returns false for spec with hardcoded token", () => {
+		const code = `import { test, expect } from '@playwright/test';
+test('auth', async ({ page }) => {
+  const headers = { token: "abc-token-xyz" };
+  await page.goto('/');
+  await expect(page).toHaveURL('/');
+});`;
+		expect(validateSpecCode(code)).toBe(false);
+	});
+
+	it("returns false for spec with .fill() containing email-like string", () => {
+		const code = `import { test, expect } from '@playwright/test';
+test('signup', async ({ page }) => {
+  await page.fill('#email', 'admin@company.com');
+  await expect(page).toHaveURL('/welcome');
+});`;
+		expect(validateSpecCode(code)).toBe(false);
+	});
+
+	it("returns false for spec with .fill() containing long password-like string", () => {
+		const code = `import { test, expect } from '@playwright/test';
+test('login', async ({ page }) => {
+  await page.fill('#password', 'MyS3cretP@ss!');
+  await expect(page).toHaveURL('/dashboard');
+});`;
+		expect(validateSpecCode(code)).toBe(false);
+	});
+});

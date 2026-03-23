@@ -21,4 +21,6 @@ export interface XSSCheckOptions {
 	timeout?: number;
 	skipPayloads?: string[];
 	apiFirst?: boolean;
+	/** Delay in milliseconds between payload submissions. Useful for WAF-protected targets. Defaults to 0. */
+	delayBetweenPayloads?: number;
 }

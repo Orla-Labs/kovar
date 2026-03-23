@@ -269,3 +269,118 @@ describe("NetworkCapture", () => {
 		});
 	});
 });
+
+describe("Response body sanitization — extended patterns", () => {
+	let capture: NetworkCapture;
+	let page: ReturnType<typeof createNetworkMockPage>;
+
+	beforeEach(() => {
+		capture = new NetworkCapture();
+		page = createNetworkMockPage();
+	});
+
+	async function attachAndCapture(
+		requestOptions: Parameters<typeof createMockRequest>[0] = {},
+		responseOptions: Parameters<typeof createMockResponse>[1] = {},
+	) {
+		await capture.attach(page as never);
+		const request = createMockRequest(requestOptions);
+		const response = createMockResponse(request, responseOptions);
+		await page.triggerEvent("request", request);
+		await page.triggerEvent("response", response);
+		return { request, response };
+	}
+
+	it("sanitizes api_key in response body", async () => {
+		await attachAndCapture(
+			{},
+			{ body: JSON.stringify({ api_key: "secret-value", name: "visible" }) },
+		);
+
+		const requests = capture.getRequests();
+		const body = requests[0]?.responseBody ?? "";
+		expect(body).not.toContain("secret-value");
+		expect(body).toContain("[REDACTED]");
+		expect(body).toContain("visible");
+	});
+
+	it("sanitizes private_key in response body", async () => {
+		await attachAndCapture(
+			{},
+			{ body: JSON.stringify({ private_key: "my-private-key", name: "visible" }) },
+		);
+
+		const requests = capture.getRequests();
+		const body = requests[0]?.responseBody ?? "";
+		expect(body).not.toContain("my-private-key");
+		expect(body).toContain("[REDACTED]");
+		expect(body).toContain("visible");
+	});
+
+	it("sanitizes client_secret in response body", async () => {
+		await attachAndCapture(
+			{},
+			{ body: JSON.stringify({ client_secret: "my-secret", name: "visible" }) },
+		);
+
+		const requests = capture.getRequests();
+		const body = requests[0]?.responseBody ?? "";
+		expect(body).not.toContain("my-secret");
+		expect(body).toContain("[REDACTED]");
+		expect(body).toContain("visible");
+	});
+
+	it("sanitizes session_id in response body", async () => {
+		await attachAndCapture(
+			{},
+			{ body: JSON.stringify({ session_id: "sess-12345", name: "visible" }) },
+		);
+
+		const requests = capture.getRequests();
+		const body = requests[0]?.responseBody ?? "";
+		expect(body).not.toContain("sess-12345");
+		expect(body).toContain("[REDACTED]");
+		expect(body).toContain("visible");
+	});
+
+	it("sanitizes credential in response body", async () => {
+		await attachAndCapture(
+			{},
+			{ body: JSON.stringify({ credential: "user-cred-abc", name: "visible" }) },
+		);
+
+		const requests = capture.getRequests();
+		const body = requests[0]?.responseBody ?? "";
+		expect(body).not.toContain("user-cred-abc");
+		expect(body).toContain("[REDACTED]");
+		expect(body).toContain("visible");
+	});
+
+	it("sanitizes numeric token values in response body", async () => {
+		await attachAndCapture({}, { body: '{"token": 99887766, "name": "visible"}' });
+
+		const requests = capture.getRequests();
+		const body = requests[0]?.responseBody ?? "";
+		expect(body).not.toContain("99887766");
+		expect(body).toContain("[REDACTED]");
+		expect(body).toContain("visible");
+	});
+
+	it("sanitizes boolean secret values in response body", async () => {
+		await attachAndCapture({}, { body: '{"secret": true, "name": "visible"}' });
+
+		const requests = capture.getRequests();
+		const body = requests[0]?.responseBody ?? "";
+		expect(body).toContain("[REDACTED]");
+		expect(body).toContain("visible");
+	});
+
+	it("sanitizes null password values in response body", async () => {
+		await attachAndCapture({}, { body: '{"password": null, "name": "visible"}' });
+
+		const requests = capture.getRequests();
+		const body = requests[0]?.responseBody ?? "";
+		expect(body).toContain("[REDACTED]");
+		expect(body).toContain("visible");
+	});
+});

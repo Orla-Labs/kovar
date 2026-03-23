@@ -50,54 +50,44 @@ class SecurityReporter implements Reporter {
 			100 - summary.critical * 20 - summary.high * 10 - summary.medium * 5 - summary.low * 2,
 		);
 
+		const BOX_WIDTH = 51;
+
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape stripping requires control chars
+		const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+		function padLine(content: string): string {
+			const visible = content.replace(ANSI_PATTERN, "");
+			const pad = Math.max(0, BOX_WIDTH - 2 - visible.length);
+			return `${BOLD}│${RESET}${content}${" ".repeat(pad)}${BOLD}│${RESET}`;
+		}
+
+		const border = "─".repeat(BOX_WIDTH - 2);
+
 		console.log("");
-		console.log(`${BOLD}┌─ Kovar Security Summary ────────────────────────────┐${RESET}`);
-		console.log(
-			`${BOLD}│${RESET}                                                   ${BOLD}│${RESET}`,
-		);
-		console.log(
-			`${BOLD}│${RESET}  Score: ${score}/100${" ".repeat(39 - String(score).length)}${BOLD}│${RESET}`,
-		);
-		console.log(
-			`${BOLD}│${RESET}                                                   ${BOLD}│${RESET}`,
-		);
+		console.log(`${BOLD}┌─ Kovar Security Summary ${border.slice(24)}┐${RESET}`);
+		console.log(padLine(""));
+		console.log(padLine(`  Score: ${score}/100`));
+		console.log(padLine(""));
 
 		if (summary.critical > 0) {
-			console.log(
-				`${BOLD}│${RESET}  ${SEVERITY_COLORS.critical}✗ ${summary.critical} critical${RESET}${" ".repeat(40 - String(summary.critical).length)}${BOLD}│${RESET}`,
-			);
+			console.log(padLine(`  ${SEVERITY_COLORS.critical}✗ ${summary.critical} critical${RESET}`));
 		}
 		if (summary.high > 0) {
-			console.log(
-				`${BOLD}│${RESET}  ${SEVERITY_COLORS.high}✗ ${summary.high} high${RESET}${" ".repeat(44 - String(summary.high).length)}${BOLD}│${RESET}`,
-			);
+			console.log(padLine(`  ${SEVERITY_COLORS.high}✗ ${summary.high} high${RESET}`));
 		}
 		if (summary.medium > 0) {
-			console.log(
-				`${BOLD}│${RESET}  ${SEVERITY_COLORS.medium}⚠ ${summary.medium} medium${RESET}${" ".repeat(42 - String(summary.medium).length)}${BOLD}│${RESET}`,
-			);
+			console.log(padLine(`  ${SEVERITY_COLORS.medium}⚠ ${summary.medium} medium${RESET}`));
 		}
 		if (summary.low > 0) {
-			console.log(
-				`${BOLD}│${RESET}  ${SEVERITY_COLORS.low}⚠ ${summary.low} low${RESET}${" ".repeat(45 - String(summary.low).length)}${BOLD}│${RESET}`,
-			);
+			console.log(padLine(`  ${SEVERITY_COLORS.low}⚠ ${summary.low} low${RESET}`));
 		}
 		if (summary.info > 0) {
-			console.log(
-				`${BOLD}│${RESET}  ${SEVERITY_COLORS.info}ℹ ${summary.info} info${RESET}${" ".repeat(44 - String(summary.info).length)}${BOLD}│${RESET}`,
-			);
+			console.log(padLine(`  ${SEVERITY_COLORS.info}ℹ ${summary.info} info${RESET}`));
 		}
 
-		console.log(
-			`${BOLD}│${RESET}                                                   ${BOLD}│${RESET}`,
-		);
-		console.log(
-			`${BOLD}│${RESET}  ${this.testsWithFindings} test(s) with security findings              ${BOLD}│${RESET}`,
-		);
-		console.log(
-			`${BOLD}│${RESET}                                                   ${BOLD}│${RESET}`,
-		);
-		console.log(`${BOLD}└───────────────────────────────────────────────────┘${RESET}`);
+		console.log(padLine(""));
+		console.log(padLine(`  ${this.testsWithFindings} test(s) with security findings`));
+		console.log(padLine(""));
+		console.log(`${BOLD}└${border}┘${RESET}`);
 		console.log("");
 	}
 }

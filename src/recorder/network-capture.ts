@@ -40,9 +40,14 @@ function sanitizeResponseBody(body: string): string {
 		/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
 		"[EMAIL_REDACTED]",
 	);
-	// Redact values for sensitive JSON keys
+	// Redact string values for sensitive JSON keys
 	sanitized = sanitized.replace(
-		/("(?:token|secret|password|apiKey|access_token|refresh_token)")\s*:\s*"[^"]*"/gi,
+		/("(?:token|secret|password|apiKey|api_key|access_token|refresh_token|private_key|client_secret|session_id|credential)")\s*:\s*"[^"]*"/gi,
+		'$1: "[REDACTED]"',
+	);
+	// Redact non-string values (numbers, booleans, null) for sensitive JSON keys
+	sanitized = sanitized.replace(
+		/("(?:token|secret|password|apiKey|api_key|access_token|refresh_token|private_key|client_secret|session_id|credential)")\s*:\s*(?:true|false|null|\d[\d.eE+-]*)\b/gi,
 		'$1: "[REDACTED]"',
 	);
 	return sanitized;
