@@ -17,13 +17,12 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
       - run: npm ci
-      - run: npm run build:browser
+      - run: npm run build
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
-      - run: npm run build
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
