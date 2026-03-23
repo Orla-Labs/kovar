@@ -75,12 +75,7 @@
 	"bin": {
 		"kovar": "./bin/kovar.js"
 	},
-	"files": [
-		"dist",
-		"bin",
-		"LICENSE",
-		"README.md"
-	],
+	"files": ["dist", "bin", "LICENSE", "README.md"],
 	"scripts": {
 		"build:browser": "tsx scripts/build-browser.ts",
 		"build": "npm run build:browser && tsup",

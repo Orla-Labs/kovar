@@ -10,9 +10,11 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 
-const ROOT = path.resolve(import.meta.dirname, "..");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, "..");
 const BROWSER_DIR = path.join(ROOT, "src", "recorder", "browser");
 const OUT_DIR = path.join(ROOT, "src", "recorder", "generated");
 
