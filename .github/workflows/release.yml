@@ -5,11 +5,17 @@ on:
     tags: ['v*']
 
 jobs:
+  # Run the full CI suite first — release won't publish unless all checks pass
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   publish:
     runs-on: ubuntu-22.04
+    needs: [ci]
     permissions:
       contents: write
       id-token: write
+    environment: npm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,11 +24,6 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run build
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test
-      - run: npx playwright install --with-deps chromium
-      - run: npx playwright test
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
