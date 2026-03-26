@@ -1,5 +1,13 @@
 export { analyzeHeaders } from "./checks/headers.js";
 export { analyzeCookies, mapPlaywrightCookies, type CookieInput } from "./checks/cookies.js";
 export { XSSScanner, isReflectedUnescaped, type XSSScanResult } from "./checks/xss.js";
+export { checkCSRF } from "./checks/csrf.js";
+export { checkCORS } from "./checks/cors.js";
+export { checkAuth } from "./checks/auth.js";
+export { checkAccessibility } from "./checks/accessibility.js";
 export { XSS_POLYGLOTS } from "./payloads/index.js";
+export { generateRemediation } from "./remediation/index.js";
+export { evaluateASVS } from "./compliance/owasp-asvs.js";
+export { evaluatePCIDSS } from "./compliance/pci-dss.js";
+export { formatComplianceReport } from "./compliance/report.js";
 export type * from "./types/index.js";

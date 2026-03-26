@@ -172,18 +172,18 @@ export interface SessionData {
 export interface RecorderConfig {
 	url: string;
 	outputDir: string;
-	testName?: string;
-	provider?: "anthropic" | "openai";
-	model?: string;
-	captureNetwork?: boolean;
-	maskPasswords?: boolean;
-	maxActions?: number;
+	testName?: string | undefined;
+	provider?: "anthropic" | "openai" | undefined;
+	model?: string | undefined;
+	captureNetwork?: boolean | undefined;
+	maskPasswords?: boolean | undefined;
+	maxActions?: number | undefined;
 	/** Maximum recording duration in milliseconds. Defaults to 30 minutes. */
-	maxDuration?: number;
+	maxDuration?: number | undefined;
 	/** Path to the source directory for codebase-aware locator generation. */
-	sourceDir?: string;
+	sourceDir?: string | undefined;
 	/** Enable self-healing: run generated test and auto-fix failures. Defaults to false. */
-	heal?: boolean;
+	heal?: boolean | undefined;
 	/** Max self-healing attempts. Defaults to 3. */
-	healAttempts?: number;
+	healAttempts?: number | undefined;
 }

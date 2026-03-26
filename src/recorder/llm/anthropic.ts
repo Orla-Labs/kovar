@@ -5,6 +5,10 @@ const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
+function sanitizeErrorDetail(msg: string): string {
+	return msg.replace(/\b(sk-|pk-|key-|Bearer\s+)[a-zA-Z0-9_-]{10,}\b/g, "[REDACTED]");
+}
+
 export class AnthropicProvider implements LLMProvider {
 	name = "anthropic";
 
@@ -38,8 +42,8 @@ export class AnthropicProvider implements LLMProvider {
 			let errorType = `HTTP ${response.status}`;
 			try {
 				const parsed = JSON.parse(body) as { error?: { type?: string; message?: string } };
-				if (parsed.error?.type) errorType = parsed.error.type;
-				if (parsed.error?.message) errorType += `: ${parsed.error.message}`;
+				if (parsed.error?.type) errorType = sanitizeErrorDetail(parsed.error.type);
+				if (parsed.error?.message) errorType += `: ${sanitizeErrorDetail(parsed.error.message)}`;
 			} catch {
 				// Non-JSON error body — use status only to avoid leaking request content
 			}

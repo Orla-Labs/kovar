@@ -30,6 +30,6 @@ export async function toBeResilientToXSS(
 		},
 		name: "toBeResilientToXSS",
 		expected: "No XSS vulnerabilities",
-		actual: result.findings,
+		actual: received,
 	};
 }

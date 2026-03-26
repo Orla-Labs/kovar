@@ -60,6 +60,7 @@ function checkSecureFlag(cookie: CookieInput, isSession: boolean): SecurityFindi
 		cookie: cookie.name,
 		message: `Cookie "${cookie.name}" is missing the Secure flag`,
 		remediation: `Set the Secure flag: cookie("${cookie.name}", value, { secure: true })`,
+		cweId: "CWE-614",
 	};
 }
 
@@ -72,6 +73,7 @@ function checkHttpOnly(cookie: CookieInput, isSession: boolean): SecurityFinding
 		cookie: cookie.name,
 		message: `Session cookie "${cookie.name}" is missing the HttpOnly flag — accessible to JavaScript`,
 		remediation: `Set the HttpOnly flag: cookie("${cookie.name}", value, { httpOnly: true })`,
+		cweId: "CWE-1004",
 	};
 }
 
@@ -88,6 +90,7 @@ function checkSameSite(
 		cookie: cookie.name,
 		message: `Cookie "${cookie.name}" has SameSite=None, enabling cross-site requests`,
 		remediation: `Set SameSite to Strict or Lax: cookie("${cookie.name}", value, { sameSite: "strict" })`,
+		cweId: "CWE-352",
 	};
 }
 
@@ -106,6 +109,7 @@ function checkExpiry(
 		cookie: cookie.name,
 		message: `Session cookie "${cookie.name}" expires in ${days} days (max recommended: ${maxExpiry})`,
 		remediation: "Reduce cookie expiration or use session cookies (no explicit expiry)",
+		cweId: "CWE-565",
 	};
 }
 
@@ -118,6 +122,7 @@ function checkBroadPath(cookie: CookieInput, isSession: boolean): SecurityFindin
 		cookie: cookie.name,
 		message: `Session cookie "${cookie.name}" has path="/", making it available to all routes`,
 		remediation: "Restrict the cookie path to the minimum scope needed",
+		cweId: "CWE-565",
 	};
 }
 
@@ -132,6 +137,7 @@ function checkHostPrefix(cookie: CookieInput): SecurityFinding | null {
 		cookie: cookie.name,
 		message: `Cookie "${cookie.name}" uses __Host- prefix but violates its requirements (must be Secure, path=/, no Domain)`,
 		remediation: "__Host- cookies must have Secure flag, path=/, and no Domain attribute",
+		cweId: "CWE-614",
 	};
 }
 
@@ -144,6 +150,7 @@ function checkSecurePrefix(cookie: CookieInput): SecurityFinding | null {
 		cookie: cookie.name,
 		message: `Cookie "${cookie.name}" uses __Secure- prefix but is missing the Secure flag`,
 		remediation: "__Secure- cookies must have the Secure flag set",
+		cweId: "CWE-614",
 	};
 }
 

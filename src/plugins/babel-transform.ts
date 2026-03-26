@@ -3,9 +3,25 @@ import { parse } from "@babel/parser";
 import _traverse from "@babel/traverse";
 import * as t from "@babel/types";
 
+interface BabelTraversePath {
+	node: t.JSXOpeningElement;
+	parent: t.Node;
+	stop: () => void;
+}
+
 // Handle CJS/ESM interop for Babel packages
-const traverse = typeof _traverse === "function" ? _traverse : (_traverse as any).default;
-const generate = typeof _generate === "function" ? _generate : (_generate as any).default;
+const traverse: (ast: t.File, visitors: Record<string, (path: BabelTraversePath) => void>) => void =
+	typeof _traverse === "function"
+		? _traverse
+		: (_traverse as { default: typeof _traverse }).default;
+const generate: (
+	ast: t.File,
+	opts: { sourceMaps: boolean; sourceFileName: string },
+	code: string,
+) => { code: string; map: unknown } =
+	typeof _generate === "function"
+		? _generate
+		: (_generate as { default: typeof _generate }).default;
 
 const KOVAR_ATTR_PREFIX = "data-kovar-";
 
@@ -48,9 +64,9 @@ export function transformJSX(
 	let modified = false;
 
 	traverse(ast, {
-		JSXOpeningElement(path: any) {
-			const node = path.node as t.JSXOpeningElement;
-			const parent = path.parent as t.Node;
+		JSXOpeningElement(path: BabelTraversePath) {
+			const node = path.node;
+			const parent = path.parent;
 
 			if (isFragment(node, parent)) return;
 			if (hasKovarAttributes(node.attributes)) return;

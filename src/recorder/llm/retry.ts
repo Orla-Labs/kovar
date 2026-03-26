@@ -6,13 +6,17 @@ const INITIAL_DELAY_MS = 1000;
 const BACKOFF_MULTIPLIER = 2;
 const REQUEST_TIMEOUT_MS = 60000;
 
+function sanitizeErrorMessage(msg: string): string {
+	return msg.replace(/\b(sk-|pk-|key-|Bearer\s+)[a-zA-Z0-9_-]{10,}\b/g, "[REDACTED]");
+}
+
 export class LLMRequestError extends Error {
 	constructor(
 		message: string,
 		public readonly attempts: number,
 		public readonly lastStatus?: number,
 	) {
-		super(message);
+		super(sanitizeErrorMessage(message));
 		this.name = "LLMRequestError";
 	}
 }
@@ -50,7 +54,7 @@ function computeRetryDelay(response: Response, attempt: number): number {
 
 function logRetry(providerName: string, reason: string, attempt: number, delayMs: number): void {
 	console.warn(
-		`[${providerName}] ${reason}, retrying (attempt ${attempt}/${MAX_RETRIES + 1}) after ${delayMs}ms`,
+		`[${providerName}] ${sanitizeErrorMessage(reason)}, retrying (attempt ${attempt}/${MAX_RETRIES + 1}) after ${delayMs}ms`,
 	);
 }
 

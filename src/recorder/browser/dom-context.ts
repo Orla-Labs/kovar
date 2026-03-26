@@ -132,9 +132,9 @@ export function getVisibleText(node: Node): string {
 
 export interface ShadowHostData {
 	tag: string;
-	id?: string;
-	className?: string;
-	testId?: string;
+	id?: string | undefined;
+	className?: string | undefined;
+	testId?: string | undefined;
 }
 
 export interface ShadowDOMData {

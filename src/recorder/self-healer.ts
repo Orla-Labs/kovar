@@ -70,6 +70,7 @@ export class SelfHealer {
 				timeout: 60000,
 				stdio: "pipe",
 				encoding: "utf-8",
+				// Windows requires shell to resolve npx; safe here since specPath is validated above
 				shell: process.platform === "win32",
 			});
 			return { passed: true, error: "" };

@@ -65,40 +65,32 @@ export class ActionCapture {
 			}
 		}
 
-		// Inject capture script into child frames after navigation
 		page.on("framenavigated", (frame) => {
-			if (frame !== page.mainFrame()) {
-				frame.evaluate(getActionCaptureScript()).catch(() => {
-					// Ignore errors for cross-origin iframes
+			if (frame === page.mainFrame()) {
+				const url = frame.url();
+				const now = Date.now();
+
+				const lastAction =
+					this.actions.length > 0 ? this.actions[this.actions.length - 1] : undefined;
+				if (
+					lastAction &&
+					lastAction.type === "navigation" &&
+					lastAction.url === url &&
+					now - lastAction.timestamp < NAV_DEDUP_WINDOW
+				) {
+					return;
+				}
+
+				this.actions.push({
+					type: "navigation",
+					timestamp: now,
+					url,
+					element: null,
 				});
+				this.lastActivityTime = now;
+			} else {
+				frame.evaluate(getActionCaptureScript()).catch(() => {});
 			}
-		});
-
-		page.on("framenavigated", (frame) => {
-			if (frame !== page.mainFrame()) return;
-
-			const url = frame.url();
-			const now = Date.now();
-
-			// M6: Deduplicate against recent browser-side SPA navigation
-			const lastAction =
-				this.actions.length > 0 ? this.actions[this.actions.length - 1] : undefined;
-			if (
-				lastAction &&
-				lastAction.type === "navigation" &&
-				lastAction.url === url &&
-				now - lastAction.timestamp < NAV_DEDUP_WINDOW
-			) {
-				return;
-			}
-
-			this.actions.push({
-				type: "navigation",
-				timestamp: now,
-				url,
-				element: null,
-			});
-			this.lastActivityTime = now;
 		});
 	}
 

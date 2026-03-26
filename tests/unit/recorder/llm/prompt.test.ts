@@ -427,7 +427,7 @@ describe("buildPrompt", () => {
 		const session = makeSession({ actions: [action] });
 		const { user } = buildPrompt(session, "sanitize-test");
 		// The delta text should have code fences stripped
-		expect(user).toContain("Normal text  some code  more text");
+		expect(user).toContain("Normal text some code more text");
 		expect(user).not.toContain("``` some code ```");
 	});
 

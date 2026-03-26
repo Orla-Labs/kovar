@@ -156,7 +156,10 @@ export class XSSScanner {
 				return results;
 			})()
 		`);
-		return results as FormInfo[];
+		if (!Array.isArray(results)) return [];
+		return (results as FormInfo[]).filter(
+			(f) => typeof f.action === "string" && Array.isArray(f.inputs),
+		);
 	}
 
 	private async getFormBySelector(selector: string): Promise<FormInfo[]> {
@@ -180,6 +183,7 @@ export class XSSScanner {
 			})()
 		`);
 		const form = result as FormInfo | null;
+		if (form && (typeof form.action !== "string" || !Array.isArray(form.inputs))) return [];
 		return form ? [form] : [];
 	}
 
@@ -225,6 +229,8 @@ export class XSSScanner {
 							timeout: timeout ?? DEFAULT_API_TIMEOUT,
 						});
 
+			if (response.status() >= 400) return null;
+
 			const body = await response.text();
 			if (isReflectedUnescaped(body, payload)) {
 				return buildXSSFinding(
@@ -234,8 +240,10 @@ export class XSSScanner {
 					`Payload "${payload.name}" was reflected unescaped in the response body`,
 				);
 			}
-		} catch {
-			// Request failed or timed out
+		} catch (error: unknown) {
+			console.warn(
+				`[kovar] XSS payload request failed for ${form.action}: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 
 		return null;
@@ -259,10 +267,6 @@ export class XSSScanner {
 		};
 
 		this.page.on("dialog", dialogHandler);
-		const cleanupTimeout = setTimeout(
-			() => this.page.removeListener("dialog", dialogHandler),
-			(timeout ?? DEFAULT_DOM_TIMEOUT) * payloads.length * form.inputs.length + 5000,
-		);
 
 		try {
 			for (const input of form.inputs) {
@@ -275,7 +279,6 @@ export class XSSScanner {
 				}
 			}
 		} finally {
-			clearTimeout(cleanupTimeout);
 			this.page.removeListener("dialog", dialogHandler);
 		}
 
@@ -291,11 +294,11 @@ export class XSSScanner {
 		const waitTime = timeout ?? DEFAULT_DOM_TIMEOUT;
 
 		try {
+			const savedUrl = this.page.url();
 			await this.page.fill(input.selector, payload.payload);
 			const submitButton = await this.page.$('button[type="submit"], input[type="submit"]');
 			if (submitButton) await submitButton.click();
 
-			// Wait for dialog event instead of fixed timeout — resolves immediately on XSS hit
 			await Promise.race([
 				this.page.waitForEvent("dialog", { timeout: waitTime }).catch(() => {}),
 				new Promise((resolve) => setTimeout(resolve, waitTime)),
@@ -310,9 +313,15 @@ export class XSSScanner {
 				);
 			}
 
-			await this.page.goBack().catch(() => {});
-		} catch {
-			// Payload caused navigation error or timeout
+			if (this.page.url() !== savedUrl) {
+				await this.page.goto(savedUrl).catch(() => {});
+			} else {
+				await this.page.goBack().catch(() => {});
+			}
+		} catch (error: unknown) {
+			console.warn(
+				`[kovar] XSS DOM payload failed for ${input.name}: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 
 		return null;

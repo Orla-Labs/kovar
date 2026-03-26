@@ -1,6 +1,16 @@
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 
-export type FindingCategory = "headers" | "cookies" | "xss";
+export type FindingCategory =
+	| "headers"
+	| "cookies"
+	| "xss"
+	| "authentication"
+	| "access-control"
+	| "injection"
+	| "cryptography"
+	| "configuration"
+	| "secrets"
+	| "information-disclosure";
 
 export interface SecurityFinding {
 	id: string;
@@ -13,6 +23,10 @@ export interface SecurityFinding {
 	cookie?: string;
 	payload?: string;
 	evidence?: string;
+	cweId?: string;
+	cvssScore?: number;
+	cvssVector?: string;
+	references?: string[];
 }
 
 export interface SecuritySummary {

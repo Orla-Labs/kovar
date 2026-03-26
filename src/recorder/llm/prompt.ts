@@ -9,9 +9,19 @@ import type {
 	SessionData,
 } from "../types.js";
 
+const PROMPT_INJECTION_MARKERS = /\b(###|INSTRUCTIONS|OVERRIDE|IGNORE|SYSTEM)\b/gi;
+
 function sanitizePromptText(text: string | null | undefined, maxLen = 100): string {
 	if (!text) return "";
-	return text.replace(/```/g, "").replace(/\n/g, " ").trim().slice(0, maxLen);
+	return text
+		.replace(/```/g, "")
+		.replace(/\n/g, " ")
+		.replace(/["']/g, "")
+		.replace(/[<>{}\\]/g, "")
+		.replace(PROMPT_INJECTION_MARKERS, "")
+		.replace(/ {2,}/g, " ")
+		.trim()
+		.slice(0, maxLen);
 }
 
 export function sanitizeCodeForPrompt(code: string | null | undefined, maxLen: number): string {
@@ -20,6 +30,35 @@ export function sanitizeCodeForPrompt(code: string | null | undefined, maxLen: n
 		.replace(/```(?:typescript|ts)?/g, "")
 		.trim()
 		.slice(0, maxLen);
+}
+
+const ASSERTION_DANGEROUS_PATTERNS = [
+	/\beval\s*\(/,
+	/\brequire\s*\(/,
+	/child_process/,
+	/\bexec\s*\(/,
+	/fs\.\w+Sync/,
+	/fs\.promises/,
+	/\breadFile\b/,
+	/\bwriteFile\b/,
+	/\bappendFile\b/,
+	/\bunlink\b/,
+	/\bimport\s*\(/,
+	/\bFunction\s*\(/,
+	/process\.exit/,
+	/\bglobalThis\b/,
+	/\bnew\s+Proxy\b/,
+	/\bnew\s+WebSocket\b/,
+	/\bnavigator\.sendBeacon\b/,
+	/\bdocument\.cookie\b/,
+	/\blocalStorage\b/,
+	/\bsessionStorage\b/,
+	/\bprocess\.env\b/,
+	/\bfetch\s*\(\s*['"]https?:\/\//,
+];
+
+function hasAssertionDangerousPatterns(code: string): boolean {
+	return ASSERTION_DANGEROUS_PATTERNS.some((pattern) => pattern.test(code));
 }
 
 function sanitizeUrl(url: string): string {
@@ -294,7 +333,9 @@ function formatElementAction(
 	if (action.element) {
 		const strategy = generateLocator(action.element, sourceMetadata);
 		parts.push(`Element: <${action.element.tagName}>`);
-		if (action.element.nearbyHeading) parts.push(`Section: "${action.element.nearbyHeading}"`);
+		if (action.element.nearbyHeading)
+			parts.push(`Section: "${sanitizePromptText(action.element.nearbyHeading, 80)}"`);
+		if (action.element.text) parts.push(`Text: "${sanitizePromptText(action.element.text, 80)}"`);
 		parts.push(`Suggested locator: ${strategy.primary}`);
 		if (strategy.fallbacks.length > 0) {
 			parts.push(`Fallbacks: ${strategy.fallbacks.slice(0, 2).join(" | ")}`);
@@ -410,8 +451,8 @@ function formatRequest(req: RecordedRequest): string {
 	}
 	if (req.responseBody) {
 		const truncated =
-			req.responseBody.length > 500 ? `${req.responseBody.substring(0, 500)}...` : req.responseBody;
-		line += `\n   Response: ${truncated}`;
+			req.responseBody.length > 200 ? `${req.responseBody.substring(0, 200)}...` : req.responseBody;
+		line += `\n   Response: ${sanitizePromptText(truncated, 250)}`;
 	}
 	return line;
 }
@@ -499,9 +540,23 @@ function trimRequests(requests: RecordedRequest[], budget: number): string {
 function formatAssertions(assertions: AssertionSuggestion[] | undefined): string {
 	if (!assertions || assertions.length === 0) return "";
 
-	const lines = assertions.map((a, i) => {
-		return `${i + 1}. [${a.type}] (after action #${a.afterActionIndex}) ${sanitizePromptText(a.description, 100)}\n   Code: ${a.playwrightCode}`;
-	});
+	const lines: string[] = [];
+	let lineNum = 0;
+	for (const a of assertions) {
+		lineNum++;
+		const sanitizedDesc = sanitizePromptText(a.description, 100);
+		const code = a.playwrightCode;
+		if (hasAssertionDangerousPatterns(code)) {
+			lines.push(
+				`${lineNum}. [${a.type}] (after action #${a.afterActionIndex}) (assertion skipped: contained suspicious patterns)`,
+			);
+			continue;
+		}
+		const sanitizedCode = sanitizeCodeForPrompt(code, 500);
+		lines.push(
+			`${lineNum}. [${a.type}] (after action #${a.afterActionIndex}) ${sanitizedDesc}\n   Code: ${sanitizedCode}`,
+		);
+	}
 
 	return `\n### User-Accepted Assertions (MUST include in spec)
 

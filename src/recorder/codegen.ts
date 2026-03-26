@@ -87,13 +87,21 @@ const DANGEROUS_PATTERNS = [
 	/\bglobalThis\b/,
 	/\bnew\s+Proxy\b/,
 	/\bnew\s+WebSocket\b/,
-	// Data exfiltration via beacon API — never legitimate in test runner context
 	/\bnavigator\.sendBeacon\b/,
-	// Cookie/storage access at test runner level — legitimate only inside page.evaluate()
-	// which operates in the browser context, not the Node.js test runner
 	/\bdocument\.cookie\b/,
 	/\blocalStorage\b/,
 	/\bsessionStorage\b/,
+	/\bfetch\s*\(/,
+	/\bspawn\s*\(/,
+	/\bfork\s*\(/,
+	/\bexecSync\s*\(/,
+	/\bspawnSync\s*\(/,
+	/\bsetTimeout\s*\(\s*['"`]/,
+	/\bsetInterval\s*\(\s*['"`]/,
+	/\bwindow\s*\[/,
+	/\bglobalThis\s*\[/,
+	/\bXMLHttpRequest\b/,
+	/\bimportScripts\b/,
 ];
 
 function hasDangerousPatterns(code: string): boolean {

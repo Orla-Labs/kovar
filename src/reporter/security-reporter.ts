@@ -9,6 +9,14 @@ import type {
 import type { SecurityFinding } from "../types/index.js";
 import { summarize } from "../types/results.js";
 
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+
+const supportsColor = process.stdout.isTTY && !process.env.NO_COLOR;
+
+function colorize(text: string, color: string): string {
+	return supportsColor ? `${color}${text}\x1b[0m` : text;
+}
+
 const SEVERITY_COLORS: Record<string, string> = {
 	critical: "\x1b[31m",
 	high: "\x1b[91m",
@@ -16,8 +24,8 @@ const SEVERITY_COLORS: Record<string, string> = {
 	low: "\x1b[36m",
 	info: "\x1b[90m",
 };
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
+const RESET = supportsColor ? "\x1b[0m" : "";
+const BOLD = supportsColor ? "\x1b[1m" : "";
 
 class SecurityReporter implements Reporter {
 	private allFindings: SecurityFinding[] = [];
@@ -32,9 +40,17 @@ class SecurityReporter implements Reporter {
 				attachment.contentType === "application/json" &&
 				attachment.body
 			) {
-				const findings: SecurityFinding[] = JSON.parse(attachment.body.toString());
+				const bodyStr = attachment.body.toString();
+				if (bodyStr.length > MAX_ATTACHMENT_SIZE) {
+					console.warn(
+						`[kovar] Security findings attachment too large (${bodyStr.length} bytes), skipping`,
+					);
+					continue;
+				}
+				const findings: unknown = JSON.parse(bodyStr);
+				if (!Array.isArray(findings)) continue;
 				if (findings.length > 0) {
-					this.allFindings.push(...findings);
+					this.allFindings.push(...(findings as SecurityFinding[]));
 					this.testsWithFindings++;
 				}
 			}
@@ -69,19 +85,23 @@ class SecurityReporter implements Reporter {
 		console.log(padLine(""));
 
 		if (summary.critical > 0) {
-			console.log(padLine(`  ${SEVERITY_COLORS.critical}✗ ${summary.critical} critical${RESET}`));
+			console.log(
+				padLine(`  ${colorize(`✗ ${summary.critical} critical`, SEVERITY_COLORS.critical ?? "")}`),
+			);
 		}
 		if (summary.high > 0) {
-			console.log(padLine(`  ${SEVERITY_COLORS.high}✗ ${summary.high} high${RESET}`));
+			console.log(padLine(`  ${colorize(`✗ ${summary.high} high`, SEVERITY_COLORS.high ?? "")}`));
 		}
 		if (summary.medium > 0) {
-			console.log(padLine(`  ${SEVERITY_COLORS.medium}⚠ ${summary.medium} medium${RESET}`));
+			console.log(
+				padLine(`  ${colorize(`⚠ ${summary.medium} medium`, SEVERITY_COLORS.medium ?? "")}`),
+			);
 		}
 		if (summary.low > 0) {
-			console.log(padLine(`  ${SEVERITY_COLORS.low}⚠ ${summary.low} low${RESET}`));
+			console.log(padLine(`  ${colorize(`⚠ ${summary.low} low`, SEVERITY_COLORS.low ?? "")}`));
 		}
 		if (summary.info > 0) {
-			console.log(padLine(`  ${SEVERITY_COLORS.info}ℹ ${summary.info} info${RESET}`));
+			console.log(padLine(`  ${colorize(`ℹ ${summary.info} info`, SEVERITY_COLORS.info ?? "")}`));
 		}
 
 		console.log(padLine(""));

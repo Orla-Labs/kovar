@@ -4,7 +4,20 @@ import _traverse from "@babel/traverse";
 import * as t from "@babel/types";
 import type { SourceMetadata } from "./types.js";
 
-const traverse = typeof _traverse === "function" ? _traverse : (_traverse as any).default;
+interface ParserTraversePath {
+	node: t.Node;
+	parent: t.Node;
+	parentPath: ParserTraversePath | null;
+	stop: () => void;
+}
+
+const traverse: (
+	ast: t.File,
+	visitors: Record<string, (path: ParserTraversePath) => void>,
+) => void =
+	typeof _traverse === "function"
+		? _traverse
+		: (_traverse as { default: typeof _traverse }).default;
 
 const astCache = new Map<string, t.File | null>();
 
@@ -14,7 +27,10 @@ function getAST(filePath: string): t.File | null {
 	let code: string;
 	try {
 		code = readFileSync(filePath, "utf-8");
-	} catch {
+	} catch (error) {
+		console.warn(
+			`[kovar] Failed to parse source file ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+		);
 		astCache.set(filePath, null);
 		return null;
 	}
@@ -27,7 +43,10 @@ function getAST(filePath: string): t.File | null {
 		});
 		astCache.set(filePath, ast);
 		return ast;
-	} catch {
+	} catch (error) {
+		console.warn(
+			`[kovar] Failed to parse source file ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+		);
 		astCache.set(filePath, null);
 		return null;
 	}
@@ -120,8 +139,8 @@ function getElementTag(
 	return "unknown";
 }
 
-function findEnclosingComponent(path: any): string {
-	let current = path;
+function findEnclosingComponent(path: ParserTraversePath): string {
+	let current: ParserTraversePath | null = path;
 	while (current) {
 		const node = current.node;
 		if (t.isFunctionDeclaration(node) && node.id) {
@@ -150,12 +169,13 @@ export function parseSourceLocation(
 	let result: SourceMetadata | null = null;
 
 	traverse(ast, {
-		JSXOpeningElement(path: any) {
+		JSXOpeningElement(path: ParserTraversePath) {
 			const loc = path.node.loc?.start;
 			if (!loc || loc.line !== line) return;
 			if (loc.column !== col) return;
 
-			const node = path.node as t.JSXOpeningElement;
+			if (!t.isJSXOpeningElement(path.node)) return;
+			const node = path.node;
 			const tag = getElementTag(node.name);
 
 			result = {

@@ -2,6 +2,16 @@ import * as t from "@babel/types";
 
 const KOVAR_ATTR_PREFIX = "data-kovar-";
 
+interface BabelPath {
+	node: t.JSXOpeningElement;
+	parent: t.Node;
+}
+
+interface BabelState {
+	filename?: string;
+	opts?: Record<string, unknown>;
+}
+
 function hasKovarAttributes(attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[]): boolean {
 	return attributes.some(
 		(a) =>
@@ -23,15 +33,15 @@ function isFragment(node: t.JSXOpeningElement, parent: t.Node): boolean {
 }
 
 export default function kovarBabelPlugin(): {
-	visitor: Record<string, (path: any, state: any) => void>;
+	visitor: Record<string, (path: BabelPath, state: BabelState) => void>;
 } {
 	return {
 		visitor: {
-			JSXOpeningElement(path: any, state: any) {
+			JSXOpeningElement(path: BabelPath, state: BabelState) {
 				if (process.env.NODE_ENV === "production") return;
 
-				const node = path.node as t.JSXOpeningElement;
-				const parent = path.parent as t.Node;
+				const node = path.node;
+				const parent = path.parent;
 
 				if (isFragment(node, parent)) return;
 				if (hasKovarAttributes(node.attributes)) return;
