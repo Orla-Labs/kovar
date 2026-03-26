@@ -1,6 +1,6 @@
 {
 	"name": "@orlalabs/kovar",
-	"version": "0.4.0",
+	"version": "0.4.1",
 	"description": "Security testing assertions for Playwright",
 	"license": "Apache-2.0",
 	"type": "module",
@@ -75,7 +75,12 @@
 	"bin": {
 		"kovar": "./bin/kovar.js"
 	},
-	"files": ["dist", "bin", "LICENSE", "README.md"],
+	"files": [
+		"dist",
+		"bin",
+		"LICENSE",
+		"README.md"
+	],
 	"scripts": {
 		"build:browser": "tsx scripts/build-browser.ts",
 		"build": "tsup && npm run build:browser",
