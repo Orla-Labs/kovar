@@ -138,12 +138,11 @@ describe("NetworkCapture", () => {
 		it("sanitizes JWT tokens in response body", async () => {
 			const jwt =
 				"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U";
-			// Use a non-sensitive key to avoid the sensitive-key regex overwriting the JWT_REDACTED token
 			await attachAndCapture({}, { body: `{"accessCode": "${jwt}"}` });
 
 			const requests = capture.getRequests();
 			expect(requests[0]?.responseBody).not.toContain(jwt);
-			expect(requests[0]?.responseBody).toContain("[JWT_REDACTED]");
+			expect(requests[0]?.responseBody).toContain("[REDACTED]");
 		});
 
 		it("sanitizes email addresses in response body", async () => {
@@ -151,7 +150,7 @@ describe("NetworkCapture", () => {
 
 			const requests = capture.getRequests();
 			expect(requests[0]?.responseBody).not.toContain("user@example.com");
-			expect(requests[0]?.responseBody).toContain("[EMAIL_REDACTED]");
+			expect(requests[0]?.responseBody).toContain("[REDACTED]");
 		});
 
 		it("sanitizes sensitive JSON keys (password, secret, token) in response body", async () => {

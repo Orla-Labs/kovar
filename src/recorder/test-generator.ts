@@ -9,7 +9,39 @@ import {
 } from "./codegen.js";
 import { buildPrompt } from "./llm/prompt.js";
 import type { LLMProvider } from "./llm/types.js";
-import type { SessionData } from "./types.js";
+import type { RecordedAction, RecordedRequest, SessionData } from "./types.js";
+
+const SENSITIVE_REQUEST_HEADERS =
+	/^(authorization|cookie|set-cookie|x-api-key|x-auth-token|x-csrf-token|x-session-id|x-access-token|x-refresh-token|proxy-authorization)$/i;
+
+function redactSessionData(session: SessionData): SessionData {
+	const redactedRequests: RecordedRequest[] = session.requests.map((req) => {
+		const redactedRequestHeaders: Record<string, string> = {};
+		for (const [key, value] of Object.entries(req.requestHeaders)) {
+			redactedRequestHeaders[key] = SENSITIVE_REQUEST_HEADERS.test(key) ? "[REDACTED]" : value;
+		}
+		return {
+			...req,
+			requestPostData: req.requestPostData ? "[REDACTED]" : null,
+			responseBody: null,
+			requestHeaders: redactedRequestHeaders,
+			responseHeaders: {},
+		};
+	});
+
+	const redactedActions: RecordedAction[] = session.actions.map((action) => {
+		if (action.value !== undefined && action.value !== "[MASKED]") {
+			return { ...action, value: "[REDACTED]" };
+		}
+		return { ...action };
+	});
+
+	return {
+		...session,
+		requests: redactedRequests,
+		actions: redactedActions,
+	};
+}
 
 export interface GenerateResult {
 	specPath: string;
@@ -64,10 +96,11 @@ export class TestGenerator {
 
 			return { specPath: files.specPath, pagePath: files.pagePath };
 		} catch (error) {
+			const redacted = redactSessionData(session);
 			const fallbackPath = writeTestFile(
 				this.outputDir,
 				`${resolvedName}.recording`,
-				JSON.stringify(session, null, 2),
+				JSON.stringify(redacted, null, 2),
 			);
 			const message = error instanceof Error ? error.message : String(error);
 			console.error(`  ✗ LLM generation failed: ${message}`);

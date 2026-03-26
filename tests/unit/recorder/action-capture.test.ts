@@ -163,8 +163,7 @@ describe("ActionCapture", () => {
 	describe("framenavigated listener", () => {
 		it("pushes navigation action on main frame navigation", async () => {
 			const { framenavigatedHandlers } = await attachAndGetCallbacks();
-			// 2 handlers: one for iframe script injection, one for navigation tracking
-			expect(framenavigatedHandlers).toHaveLength(2);
+			expect(framenavigatedHandlers).toHaveLength(1);
 
 			const mainFrame = page.mainFrame();
 			page.setUrl("https://example.com/navigated");

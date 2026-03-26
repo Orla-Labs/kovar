@@ -7,15 +7,19 @@ export class Toolbar {
 		await page.addInitScript(getToolbarScript());
 		try {
 			await page.evaluate(getToolbarScript());
-		} catch {
-			// Page may not be ready yet, addInitScript will handle it
+		} catch (error) {
+			console.warn(
+				`[kovar] Failed to install toolbar script: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 
 		page.on("load", async () => {
 			try {
 				await page.evaluate(getToolbarScript());
-			} catch {
-				// Page may not be ready
+			} catch (error) {
+				console.warn(
+					`[kovar] Failed to re-install toolbar script on load: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			}
 		});
 	}
@@ -32,8 +36,10 @@ export class Toolbar {
 				},
 				[actions, requests, assertions] as const,
 			);
-		} catch {
-			// Page navigating, ignore
+		} catch (error) {
+			console.warn(
+				`[kovar] Failed to update toolbar counts: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	}
 
@@ -48,8 +54,10 @@ export class Toolbar {
 				},
 				[suggestion.id, suggestion.description] as const,
 			);
-		} catch {
-			// Page navigating, ignore
+		} catch (error) {
+			console.warn(
+				`[kovar] Failed to show suggestion: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	}
 }

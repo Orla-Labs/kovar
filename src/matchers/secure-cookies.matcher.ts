@@ -32,6 +32,6 @@ export async function toHaveSecureCookies(
 		},
 		name: "toHaveSecureCookies",
 		expected: "All cookies have proper security flags",
-		actual: findings,
+		actual: received,
 	};
 }

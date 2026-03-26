@@ -17,3 +17,7 @@ export type {
 	PayloadContext,
 	PayloadDepth,
 } from "./payloads.js";
+export type { CSRFCheckOptions } from "../checks/csrf.js";
+export type { CORSCheckOptions } from "../checks/cors.js";
+export type { AuthCheckOptions } from "../checks/auth.js";
+export type { AccessibilityCheckOptions } from "../checks/accessibility.js";

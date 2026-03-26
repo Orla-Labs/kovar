@@ -4,6 +4,10 @@ import type { LLMProvider, LLMResponse, PromptPayload } from "./types.js";
 const API_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_MODEL = "gpt-4o";
 
+function sanitizeErrorDetail(msg: string): string {
+	return msg.replace(/\b(sk-|pk-|key-|Bearer\s+)[a-zA-Z0-9_-]{10,}\b/g, "[REDACTED]");
+}
+
 export class OpenAIProvider implements LLMProvider {
 	name = "openai";
 
@@ -38,8 +42,8 @@ export class OpenAIProvider implements LLMProvider {
 			let errorType = `HTTP ${response.status}`;
 			try {
 				const parsed = JSON.parse(body) as { error?: { type?: string; message?: string } };
-				if (parsed.error?.type) errorType = parsed.error.type;
-				if (parsed.error?.message) errorType += `: ${parsed.error.message}`;
+				if (parsed.error?.type) errorType = sanitizeErrorDetail(parsed.error.type);
+				if (parsed.error?.message) errorType += `: ${sanitizeErrorDetail(parsed.error.message)}`;
 			} catch {
 				// Non-JSON error body — use status only to avoid leaking request content
 			}

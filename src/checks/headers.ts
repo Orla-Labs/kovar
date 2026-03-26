@@ -6,6 +6,7 @@ interface HeaderRule {
 	severity: SecurityFinding["severity"];
 	check: (value: string | undefined) => { pass: boolean; message: string };
 	remediation: string;
+	cweId: string;
 }
 
 function parseMaxAge(value: string): number {
@@ -34,6 +35,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-hsts",
 		header: "strict-transport-security",
 		severity: "critical",
+		cweId: "CWE-319",
 		check: (value) => {
 			if (!value) return { pass: false, message: "HSTS header is missing" };
 			const maxAge = parseMaxAge(value);
@@ -51,6 +53,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-csp",
 		header: "content-security-policy",
 		severity: "critical",
+		cweId: "CWE-693",
 		check: (value) => {
 			if (!value) return { pass: false, message: "Content-Security-Policy header is missing" };
 			if (DANGEROUS_CSP_PATTERNS.some((p) => p.test(value)) || hasUnsafeInlineWithoutNonce(value)) {
@@ -68,6 +71,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-xcto",
 		header: "x-content-type-options",
 		severity: "high",
+		cweId: "CWE-16",
 		check: (value) => {
 			if (!value) return { pass: false, message: "X-Content-Type-Options header is missing" };
 			if (value.toLowerCase() !== "nosniff") {
@@ -84,6 +88,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-xfo",
 		header: "x-frame-options",
 		severity: "high",
+		cweId: "CWE-1021",
 		check: (value) => {
 			if (!value) return { pass: false, message: "X-Frame-Options header is missing" };
 			const upper = value.toUpperCase();
@@ -101,6 +106,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-referrer-policy",
 		header: "referrer-policy",
 		severity: "medium",
+		cweId: "CWE-693",
 		check: (value) => {
 			if (!value) return { pass: false, message: "Referrer-Policy header is missing" };
 			if (value.toLowerCase() === "unsafe-url") {
@@ -114,6 +120,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-permissions-policy",
 		header: "permissions-policy",
 		severity: "medium",
+		cweId: "CWE-693",
 		check: (value) => {
 			if (!value) return { pass: false, message: "Permissions-Policy header is missing" };
 			return { pass: true, message: "" };
@@ -125,6 +132,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-coop",
 		header: "cross-origin-opener-policy",
 		severity: "low",
+		cweId: "CWE-693",
 		check: (value) => {
 			if (!value) return { pass: false, message: "Cross-Origin-Opener-Policy header is missing" };
 			return { pass: true, message: "" };
@@ -135,6 +143,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-corp",
 		header: "cross-origin-resource-policy",
 		severity: "low",
+		cweId: "CWE-693",
 		check: (value) => {
 			if (!value) return { pass: false, message: "Cross-Origin-Resource-Policy header is missing" };
 			return { pass: true, message: "" };
@@ -145,6 +154,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-missing-coep",
 		header: "cross-origin-embedder-policy",
 		severity: "low",
+		cweId: "CWE-693",
 		check: (value) => {
 			if (!value) return { pass: false, message: "Cross-Origin-Embedder-Policy header is missing" };
 			return { pass: true, message: "" };
@@ -155,6 +165,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-deprecated-xxp",
 		header: "x-xss-protection",
 		severity: "info",
+		cweId: "CWE-16",
 		check: (value) => {
 			if (value && value !== "0") {
 				return {
@@ -171,6 +182,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-remove-x-powered-by",
 		header: "x-powered-by",
 		severity: "low",
+		cweId: "CWE-16",
 		check: (value) => {
 			if (value) {
 				return {
@@ -186,6 +198,7 @@ const HEADER_RULES: HeaderRule[] = [
 		id: "header-remove-server",
 		header: "server",
 		severity: "info",
+		cweId: "CWE-16",
 		check: (value) => {
 			if (value?.match(/\d/)) {
 				return {
@@ -241,6 +254,7 @@ function validateCSPDirectives(
 				header: "content-security-policy",
 				message: `CSP is missing required directive: ${directive}`,
 				remediation: `Add the "${directive}" directive to your Content-Security-Policy`,
+				cweId: "CWE-693",
 			});
 		}
 	}
@@ -270,6 +284,7 @@ export function analyzeHeaders(
 				header: rule.header,
 				message: result.message,
 				remediation: rule.remediation,
+				cweId: rule.cweId,
 			});
 		}
 	}

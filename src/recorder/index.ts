@@ -19,7 +19,10 @@ async function lazyParseSourceLocation(
 	try {
 		const { parseSourceLocation } = await import("../source/parser.js");
 		return parseSourceLocation(filePath, line, col);
-	} catch {
+	} catch (error) {
+		console.warn(
+			`[kovar] Failed to parse source location at ${filePath}:${line}:${col}: ${error instanceof Error ? error.message : String(error)}`,
+		);
 		return null;
 	}
 }
@@ -79,7 +82,11 @@ export class RecordingSession {
 			return await this.record(browser);
 		} finally {
 			process.removeListener("SIGINT", sigintHandler);
-			await browser.close().catch(() => {});
+			await browser.close().catch((error) => {
+				console.warn(
+					`[kovar] Failed to close browser: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			});
 		}
 	}
 
@@ -117,8 +124,10 @@ export class RecordingSession {
 		assertionDetector.setOnSuggestion(async (suggestion) => {
 			try {
 				await toolbar.showSuggestion(page, suggestion);
-			} catch {
-				// Page may have closed
+			} catch (error) {
+				console.warn(
+					`[kovar] Failed to show assertion suggestion: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			}
 		});
 
@@ -130,14 +139,20 @@ export class RecordingSession {
 		}
 
 		const stopPromise = new Promise<void>((resolve) => {
-			page.exposeFunction("__kovar_stopRecording", () => resolve()).catch(() => {});
+			page
+				.exposeFunction("__kovar_stopRecording", () => resolve())
+				.catch((error) => {
+					console.warn(
+						`[kovar] Failed to expose stop function: ${error instanceof Error ? error.message : String(error)}`,
+					);
+				});
 		});
 
 		await toolbar.attach(page);
 		await page.goto(this.config.url);
 
 		const startTime = Date.now();
-		const maxDuration = this.config.maxDuration;
+		const maxDuration = this.config.maxDuration ?? DEFAULT_MAX_DURATION;
 
 		let stopResolve: (() => void) | undefined;
 		const watchdogPromise = new Promise<void>((resolve) => {
@@ -154,8 +169,10 @@ export class RecordingSession {
 					networkCapture.getRequestCount(),
 					assertionDetector.getAcceptedCount(),
 				);
-			} catch {
-				// Page may have closed
+			} catch (error) {
+				console.warn(
+					`[kovar] Failed to update recording toolbar: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			}
 
 			const now = Date.now();

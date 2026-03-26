@@ -48,9 +48,9 @@ describe("maskValue (browser-side)", () => {
 		expect(maskValue(el.type, el.name, el.placeholder, "555-123-4567")).toBe("555-123-4567");
 	});
 
-	it("masks fields with sensitive names (ssn, cpf, cvv) as [REDACTED]", () => {
+	it("masks fields with sensitive names (ssn, cpf, cvv) as [REDACTED] or [SSN]", () => {
 		const elSsn = createMockElement({ type: "text", name: "ssn" });
-		expect(maskValue(elSsn.type, elSsn.name, elSsn.placeholder, "123-45-6789")).toBe("[REDACTED]");
+		expect(maskValue(elSsn.type, elSsn.name, elSsn.placeholder, "123-45-6789")).toBe("[SSN]");
 
 		const elCpf = createMockElement({ type: "text", name: "cpf" });
 		expect(maskValue(elCpf.type, elCpf.name, elCpf.placeholder, "123.456.789-00")).toBe(
@@ -62,7 +62,7 @@ describe("maskValue (browser-side)", () => {
 
 		const elSocial = createMockElement({ type: "text", name: "social-security" });
 		expect(maskValue(elSocial.type, elSocial.name, elSocial.placeholder, "123-45-6789")).toBe(
-			"[REDACTED]",
+			"[SSN]",
 		);
 	});
 

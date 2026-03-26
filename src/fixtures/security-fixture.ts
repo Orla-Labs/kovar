@@ -1,5 +1,13 @@
 import type { APIRequestContext, BrowserContext, Page, TestInfo } from "@playwright/test";
+import type { AccessibilityCheckOptions } from "../checks/accessibility.js";
+import { checkAccessibility } from "../checks/accessibility.js";
+import type { AuthCheckOptions } from "../checks/auth.js";
+import { checkAuth } from "../checks/auth.js";
 import { analyzeCookies, mapPlaywrightCookies } from "../checks/cookies.js";
+import type { CORSCheckOptions } from "../checks/cors.js";
+import { checkCORS } from "../checks/cors.js";
+import type { CSRFCheckOptions } from "../checks/csrf.js";
+import { checkCSRF } from "../checks/csrf.js";
 import { analyzeHeaders } from "../checks/headers.js";
 import { XSSScanner } from "../checks/xss.js";
 import type {
@@ -11,11 +19,37 @@ import type {
 } from "../types/index.js";
 import { summarize } from "../types/results.js";
 
+function summarizeSeverities(findings: SecurityFinding[]): string {
+	const counts: Record<string, number> = {};
+	for (const f of findings) {
+		counts[f.severity] = (counts[f.severity] || 0) + 1;
+	}
+	return Object.entries(counts)
+		.map(([sev, n]) => `${n} ${sev}`)
+		.join(", ");
+}
+
+export class SecurityAssertionError extends Error {
+	constructor(
+		public readonly findings: SecurityFinding[],
+		public readonly url: string,
+	) {
+		const summary = summarizeSeverities(findings);
+		const details = findings.map((f) => `  [${f.severity.toUpperCase()}] ${f.message}`).join("\n");
+		super(`Security assertion failed (${summary}) at ${url}:\n${details}`);
+		this.name = "SecurityAssertionError";
+	}
+}
+
 interface AuditOptions {
 	includeXSS?: boolean;
 	xss?: XSSCheckOptions;
 	headers?: HeaderCheckOptions;
 	cookies?: CookieCheckOptions;
+	csrf?: CSRFCheckOptions;
+	cors?: CORSCheckOptions;
+	auth?: AuthCheckOptions;
+	accessibility?: AccessibilityCheckOptions;
 	/** Explicit list of check names to run. Defaults to ["headers", "cookies"] (plus "xss" if includeXSS). */
 	checks?: string[];
 }
@@ -30,8 +64,7 @@ export class CheckFacade<TOptions = unknown> {
 		const findings = await this.check(options);
 		const critical = findings.filter((f) => f.severity === "critical" || f.severity === "high");
 		if (critical.length > 0) {
-			const messages = critical.map((f) => `[${f.severity.toUpperCase()}] ${f.message}`);
-			throw new Error(`Security assertion failed:\n${messages.join("\n")}`);
+			throw new SecurityAssertionError(critical, this.fixture.getPageUrl());
 		}
 	}
 
@@ -53,6 +86,10 @@ export class SecurityFixture {
 	readonly headers: CheckFacade<HeaderCheckOptions>;
 	readonly cookies: CheckFacade<CookieCheckOptions>;
 	readonly xss: CheckFacade<XSSCheckOptions>;
+	readonly csrf: CheckFacade<CSRFCheckOptions>;
+	readonly cors: CheckFacade<CORSCheckOptions>;
+	readonly auth: CheckFacade<AuthCheckOptions>;
+	readonly accessibility: CheckFacade<AccessibilityCheckOptions>;
 	private findings: SecurityFinding[] = [];
 	private testInfo: TestInfo | null = null;
 	private auditChecks: AuditCheckEntry[] = [];
@@ -65,6 +102,10 @@ export class SecurityFixture {
 		this.headers = new CheckFacade(this, (opts) => this.checkHeaders(opts));
 		this.cookies = new CheckFacade(this, (opts) => this.checkCookies(opts));
 		this.xss = new CheckFacade(this, (opts) => this.checkXSS(opts));
+		this.csrf = new CheckFacade(this, (opts) => checkCSRF(this.request, this.page.url(), opts));
+		this.cors = new CheckFacade(this, (opts) => checkCORS(this.request, this.page.url(), opts));
+		this.auth = new CheckFacade(this, (opts) => checkAuth(this.request, this.page.url(), opts));
+		this.accessibility = new CheckFacade(this, (opts) => checkAccessibility(this.page, opts));
 
 		this.registerAuditCheck({
 			name: "headers",
@@ -79,6 +120,34 @@ export class SecurityFixture {
 			run: (opts) => this.checkXSS(opts.xss),
 			optIn: true,
 		});
+		this.registerAuditCheck({
+			name: "csrf",
+			run: (opts) => checkCSRF(this.request, this.page.url(), opts.csrf),
+			optIn: true,
+		});
+		this.registerAuditCheck({
+			name: "cors",
+			run: (opts) => checkCORS(this.request, this.page.url(), opts.cors),
+			optIn: true,
+		});
+		this.registerAuditCheck({
+			name: "auth",
+			run: (opts) => checkAuth(this.request, this.page.url(), opts.auth),
+			optIn: true,
+		});
+		this.registerAuditCheck({
+			name: "accessibility",
+			run: (opts) => checkAccessibility(this.page, opts.accessibility),
+			optIn: true,
+		});
+	}
+
+	getPageUrl(): string {
+		try {
+			return this.page.url();
+		} catch {
+			return "unknown";
+		}
 	}
 
 	setTestInfo(info: TestInfo): void {
@@ -95,18 +164,36 @@ export class SecurityFixture {
 	}
 
 	async audit(options?: AuditOptions): Promise<SecurityReport> {
+		if (this.page.isClosed()) {
+			console.warn("[kovar] Page is closed, skipping security checks");
+			return {
+				url: "unknown",
+				timestamp: new Date().toISOString(),
+				duration: 0,
+				findings: [],
+				summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+			};
+		}
+
 		const start = Date.now();
 		const url = this.page.url();
 		const explicitChecks = options?.checks ? new Set(options.checks) : null;
 
+		if (explicitChecks && options?.includeXSS !== undefined) {
+			console.warn(
+				'[kovar] Both "checks" and "includeXSS" provided to audit(). "checks" takes precedence; "includeXSS" is ignored.',
+			);
+		}
+
 		const allFindings: SecurityFinding[] = [];
 
 		for (const entry of this.auditChecks) {
-			const explicitlyListed = explicitChecks?.has(entry.name);
-			const enabledByFlag = entry.name === "xss" && options?.includeXSS;
-
-			if (entry.optIn && !explicitlyListed && !enabledByFlag) continue;
-			if (explicitChecks && !explicitlyListed) continue;
+			if (explicitChecks) {
+				if (!explicitChecks.has(entry.name)) continue;
+			} else {
+				const enabledByFlag = entry.name === "xss" && options?.includeXSS;
+				if (entry.optIn && !enabledByFlag) continue;
+			}
 
 			const findings = await entry.run(options ?? {});
 			allFindings.push(...findings);
@@ -133,6 +220,11 @@ export class SecurityFixture {
 	}
 
 	private async checkHeaders(options?: HeaderCheckOptions): Promise<SecurityFinding[]> {
+		if (this.page.isClosed()) {
+			console.warn("[kovar] Page is closed, skipping header checks");
+			return [];
+		}
+
 		const url = this.page.url();
 		if (!url || url === "about:blank") return [];
 

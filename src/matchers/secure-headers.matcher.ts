@@ -37,6 +37,6 @@ export async function toHaveSecureHeaders(
 		},
 		name: "toHaveSecureHeaders",
 		expected: "All security headers properly configured",
-		actual: findings,
+		actual: received,
 	};
 }

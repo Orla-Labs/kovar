@@ -1,0 +1,32 @@
+name: "Kovar Security Check"
+description: "Run Kovar security checks and report findings"
+inputs:
+  url:
+    description: "URL to check"
+    required: true
+  checks:
+    description: "Comma-separated checks to run (headers,cookies,xss)"
+    required: false
+    default: "headers,cookies"
+  fail-on:
+    description: "Minimum severity to fail the check (critical,high,medium,low)"
+    required: false
+    default: "high"
+  comment:
+    description: "Post findings as PR comment (true/false)"
+    required: false
+    default: "true"
+  github-token:
+    description: "GitHub token for PR comments"
+    required: false
+    default: "${{ github.token }}"
+outputs:
+  score:
+    description: "Security score (0-100)"
+  findings-count:
+    description: "Total number of findings"
+  passed:
+    description: "Whether the check passed (true/false)"
+runs:
+  using: "node20"
+  main: "../../../dist/ci/index.js"

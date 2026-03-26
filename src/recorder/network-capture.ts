@@ -15,6 +15,9 @@ const SENSITIVE_HEADERS = new Set([
 	"x-session-id",
 	"x-access-token",
 	"x-refresh-token",
+	"x-forwarded-for",
+	"cf-connecting-ip",
+	"proxy-authorization",
 ]);
 
 const SENSITIVE_HEADER_PATTERN = /token|secret|key|auth|session/i;
@@ -29,28 +32,55 @@ function maskHeaders(headers: Record<string, string>): Record<string, string> {
 	return masked;
 }
 
+const SENSITIVE_KEY_PATTERN =
+	/^(token|secret|password|passwd|apiKey|api_key|access_token|refresh_token|private_key|client_secret|session_id|credential|authorization|auth_token|ssn|credit_card|card_number|cvv|private|signing_key)$/i;
+
+const INLINE_SECRET_PATTERNS = [
+	/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+	/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+	/Bearer\s+[A-Za-z0-9_\-.~+/]+=*/g,
+	/Basic\s+[A-Za-z0-9+/]+=*/g,
+	/password=[^&\s]+/gi,
+	/\b(sk-|pk-|key-|ak_|sk_)[A-Za-z0-9_-]+/g,
+];
+
+function sanitizeJsonValue(value: unknown): unknown {
+	if (value === null || value === undefined) return value;
+	if (typeof value === "string") return applyInlineRedactions(value);
+	if (Array.isArray(value)) return value.map(sanitizeJsonValue);
+	if (typeof value === "object") return sanitizeJsonObject(value as Record<string, unknown>);
+	return value;
+}
+
+function sanitizeJsonObject(obj: Record<string, unknown>): Record<string, unknown> {
+	const result: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(obj)) {
+		if (SENSITIVE_KEY_PATTERN.test(key)) {
+			result[key] = "[REDACTED]";
+		} else {
+			result[key] = sanitizeJsonValue(value);
+		}
+	}
+	return result;
+}
+
+function applyInlineRedactions(text: string): string {
+	let result = text;
+	for (const pattern of INLINE_SECRET_PATTERNS) {
+		const fresh = new RegExp(pattern.source, pattern.flags);
+		result = result.replace(fresh, "[REDACTED]");
+	}
+	return result;
+}
+
 function sanitizeResponseBody(body: string): string {
-	// Redact JWT tokens
-	let sanitized = body.replace(
-		/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
-		"[JWT_REDACTED]",
-	);
-	// Redact email addresses
-	sanitized = sanitized.replace(
-		/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
-		"[EMAIL_REDACTED]",
-	);
-	// Redact string values for sensitive JSON keys
-	sanitized = sanitized.replace(
-		/("(?:token|secret|password|apiKey|api_key|access_token|refresh_token|private_key|client_secret|session_id|credential)")\s*:\s*"[^"]*"/gi,
-		'$1: "[REDACTED]"',
-	);
-	// Redact non-string values (numbers, booleans, null) for sensitive JSON keys
-	sanitized = sanitized.replace(
-		/("(?:token|secret|password|apiKey|api_key|access_token|refresh_token|private_key|client_secret|session_id|credential)")\s*:\s*(?:true|false|null|\d[\d.eE+-]*)\b/gi,
-		'$1: "[REDACTED]"',
-	);
-	return sanitized;
+	try {
+		const parsed: unknown = JSON.parse(body);
+		const sanitized = sanitizeJsonValue(parsed);
+		return JSON.stringify(sanitized);
+	} catch {
+		return applyInlineRedactions(body);
+	}
 }
 
 export class NetworkCapture {
@@ -80,7 +110,14 @@ export class NetworkCapture {
 			if (!pendingEntry) return;
 			this.pending.delete(request);
 
-			if (this.completed.length >= MAX_REQUESTS) return;
+			if (this.completed.length >= MAX_REQUESTS) {
+				if (this.completed.length === MAX_REQUESTS) {
+					console.warn(
+						`[kovar] Network capture limit reached (${MAX_REQUESTS} requests). Some requests may not be recorded.`,
+					);
+				}
+				return;
+			}
 
 			let responseBody: string | null = null;
 			if (CAPTURED_RESOURCE_TYPES.has(resourceType)) {

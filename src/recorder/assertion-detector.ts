@@ -7,12 +7,15 @@ export class AssertionDetector {
 	private onSuggestion: ((suggestion: AssertionSuggestion) => void) | null = null;
 	private currentActionCount = 0;
 	private cleanupHandlers: Array<() => void> = [];
+	private page: Page | null = null;
 
 	setActionCount(count: number): void {
 		this.currentActionCount = count;
 	}
 
 	async attach(page: Page): Promise<void> {
+		this.page = page;
+
 		await page.exposeFunction("__kovar_suggestAssertion", (json: string) => {
 			try {
 				const suggestion = JSON.parse(json) as AssertionSuggestion;
@@ -113,8 +116,20 @@ export class AssertionDetector {
 		return this.suggestions.filter((s) => s.accepted).length;
 	}
 
-	/** Clean up event listeners registered by this detector instance. */
-	destroy(): void {
+	async destroy(): Promise<void> {
+		if (this.page) {
+			try {
+				await this.page.evaluate(() => {
+					const win = window as unknown as Record<string, unknown>;
+					if (typeof win.__kovar_cleanupAssertionDetector === "function") {
+						(win.__kovar_cleanupAssertionDetector as () => void)();
+					}
+				});
+			} catch {
+				// Page already closed or navigating
+			}
+			this.page = null;
+		}
 		for (const handler of this.cleanupHandlers) {
 			handler();
 		}
