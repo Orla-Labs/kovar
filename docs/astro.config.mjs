@@ -2,8 +2,7 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
-	site: "https://orla-labs.github.io",
-	base: "/kovar",
+	site: "https://kovar.orlalabs.com",
 	integrations: [
 		starlight({
 			title: "Kovar",
