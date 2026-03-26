@@ -8,6 +8,19 @@ export default defineConfig({
 			title: "Kovar",
 			description: "Security testing assertions + AI-powered test recording for Playwright",
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/Orla-Labs/kovar" }],
+			head: [
+				{
+					tag: "meta",
+					attrs: { property: "og:image", content: "https://kovar.orlalabs.com/og-image.png" },
+				},
+				{ tag: "meta", attrs: { property: "og:image:width", content: "1280" } },
+				{ tag: "meta", attrs: { property: "og:image:height", content: "640" } },
+				{ tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
+				{
+					tag: "meta",
+					attrs: { name: "twitter:image", content: "https://kovar.orlalabs.com/og-image.png" },
+				},
+			],
 			sidebar: [
 				{
 					label: "Getting Started",
