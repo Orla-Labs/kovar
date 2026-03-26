@@ -172,22 +172,23 @@ function addSiblingFallbacks(
 	);
 }
 
-export function generateLocator(
-	element: CapturedElement,
-	sourceMetadata?: SourceMetadata | null,
-): LocatorStrategy {
-	const concerns: string[] = [];
-	const fallbacks: string[] = [];
-	let confidence = 0.9;
+interface LocatorContext {
+	framePrefix: string | null;
+	isInIframe: boolean;
+	isInShadow: boolean;
+	shadowHost: CapturedElement["shadowHost"];
+	confidence: number;
+	concerns: string[];
+}
 
-	// Determine iframe prefix (frameLocator replaces 'page' as the root)
+function buildLocatorContext(element: CapturedElement): LocatorContext {
 	const framePrefix = buildFrameLocatorPrefix(element);
 	const isInIframe = framePrefix !== null;
-
-	// Determine shadow DOM prefix
 	const shadowHost = element.shadowHost;
 	const shadowDepth = element.shadowDepth ?? 0;
 	const isInShadow = shadowHost !== undefined && shadowHost !== null && shadowDepth > 0;
+	const concerns: string[] = [];
+	let confidence = 0.9;
 
 	if (isInIframe) {
 		concerns.push(
@@ -195,22 +196,50 @@ export function generateLocator(
 		);
 		confidence -= 0.1;
 	}
-
 	if (isInShadow) {
 		concerns.push(`Element is inside shadow DOM (depth ${shadowDepth})`);
 		confidence -= 0.1;
 	}
 
+	return { framePrefix, isInIframe, isInShadow, shadowHost, confidence, concerns };
+}
+
+function applyContextPrefixes(primary: string, fallbacks: string[], ctx: LocatorContext): string {
+	let result = primary;
+	if (ctx.isInShadow && ctx.shadowHost) {
+		const hostSelector = buildShadowHostSelector(ctx.shadowHost);
+		result = rewriteLocatorWithShadowHost(result, hostSelector);
+		for (let i = 0; i < fallbacks.length; i++) {
+			const fb = fallbacks[i];
+			if (fb) fallbacks[i] = rewriteLocatorWithShadowHost(fb, hostSelector);
+		}
+	}
+	if (ctx.isInIframe && ctx.framePrefix) {
+		result = result.replace(/^page\./, `${ctx.framePrefix}.`);
+		for (let i = 0; i < fallbacks.length; i++) {
+			const fb = fallbacks[i];
+			if (fb) fallbacks[i] = fb.replace(/^page\./, `${ctx.framePrefix}.`);
+		}
+	}
+	return result;
+}
+
+export function generateLocator(
+	element: CapturedElement,
+	sourceMetadata?: SourceMetadata | null,
+): LocatorStrategy {
+	const ctx = buildLocatorContext(element);
+	const fallbacks: string[] = [];
+
 	if (sourceMetadata) {
 		const sourceResult = generateSourceAwareLocator(element, sourceMetadata);
 		if (sourceResult) {
-			return applyShadowAndFramePrefix(sourceResult, element, framePrefix, isInShadow);
+			return applyShadowAndFramePrefix(sourceResult, element, ctx.framePrefix, ctx.isInShadow);
 		}
-
 		if (sourceMetadata.ariaLabel) {
 			const src = `${sourceMetadata.filePath}:${sourceMetadata.line}`;
-			concerns.push(`Source-mapped from ${src} (${sourceMetadata.componentName})`);
-			confidence = 0.95;
+			ctx.concerns.push(`Source-mapped from ${src} (${sourceMetadata.componentName})`);
+			ctx.confidence = 0.95;
 		}
 	}
 
@@ -218,48 +247,27 @@ export function generateLocator(
 		element.mightBeDynamic && element.stableText ? element.stableText : element.text;
 
 	if (element.mightBeDynamic) {
-		concerns.push("Contains dynamic content; using stable text portion");
-		confidence -= 0.1;
+		ctx.concerns.push("Contains dynamic content; using stable text portion");
+		ctx.confidence -= 0.1;
 	}
-
 	if (element.siblingCount && element.siblingCount > 1) {
-		confidence -= 0.15;
+		ctx.confidence -= 0.15;
 	}
 
 	const dom = generateDOMLocator(element, displayText, fallbacks);
-	let primary = dom.primary;
-	if (dom.confidence !== null) confidence = dom.confidence;
-	if (dom.concern) concerns.push(dom.concern);
+	if (dom.confidence !== null) ctx.confidence = dom.confidence;
+	if (dom.concern) ctx.concerns.push(dom.concern);
 
-	addSiblingFallbacks(element, primary, confidence, fallbacks, concerns);
+	addSiblingFallbacks(element, dom.primary, ctx.confidence, fallbacks, ctx.concerns);
 
-	if (element.nearbyHeading && concerns.length > 0) {
-		concerns.push(`Located in section: "${element.nearbyHeading}"`);
+	if (element.nearbyHeading && ctx.concerns.length > 0) {
+		ctx.concerns.push(`Located in section: "${element.nearbyHeading}"`);
 	}
 
-	// Apply shadow DOM locator chaining
-	if (isInShadow && shadowHost) {
-		const hostSelector = buildShadowHostSelector(shadowHost);
-		primary = rewriteLocatorWithShadowHost(primary, hostSelector);
-		for (let i = 0; i < fallbacks.length; i++) {
-			const fb = fallbacks[i];
-			if (fb) fallbacks[i] = rewriteLocatorWithShadowHost(fb, hostSelector);
-		}
-	}
+	const primary = applyContextPrefixes(dom.primary, fallbacks, ctx);
+	ctx.confidence = Math.max(0, Math.min(1, ctx.confidence));
 
-	// Apply iframe frameLocator prefix
-	if (isInIframe && framePrefix) {
-		primary = primary.replace(/^page\./, `${framePrefix}.`);
-		for (let i = 0; i < fallbacks.length; i++) {
-			const fb = fallbacks[i];
-			if (fb) fallbacks[i] = fb.replace(/^page\./, `${framePrefix}.`);
-		}
-	}
-
-	// Clamp confidence to [0, 1]
-	confidence = Math.max(0, Math.min(1, confidence));
-
-	return { primary, fallbacks, confidence, concerns };
+	return { primary, fallbacks, confidence: ctx.confidence, concerns: ctx.concerns };
 }
 
 function rewriteLocatorWithShadowHost(locator: string, hostSelector: string): string {

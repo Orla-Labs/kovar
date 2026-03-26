@@ -92,6 +92,7 @@ function createAssertionDetectorEnv(options: { initialUrl?: string; initialTitle
 		}
 	}
 
+	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test helper mirrors browser-side mutation processing logic
 	function processMutationAdded(
 		nodes: Array<{
 			nodeType: number;
