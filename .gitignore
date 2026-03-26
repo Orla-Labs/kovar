@@ -8,3 +8,6 @@ playwright-report/
 .env
 .claude/settings.json
 .claude/settings.local.json
+docs/.astro/
+docs/node_modules/
+docs/dist/

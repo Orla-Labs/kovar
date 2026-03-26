@@ -51,7 +51,10 @@
 			"playwright-report",
 			"tests/unit/source/fixtures",
 			"src/recorder/generated",
-			"src/recorder/browser/*.entry.ts"
+			"src/recorder/browser/*.entry.ts",
+			"docs/.astro",
+			"docs/node_modules",
+			"docs/dist"
 		]
 	}
 }
