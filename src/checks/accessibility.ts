@@ -27,8 +27,8 @@ interface A11yContext {
 	lowContrastCount: number;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: browser DOM traversal requires inline logic
 async function gatherContext(page: Page): Promise<A11yContext> {
+	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: browser DOM traversal requires inline logic
 	return page.evaluate(() => {
 		const imagesWithoutAlt = document.querySelectorAll("img:not([alt])").length;
 
