@@ -1,6 +1,7 @@
 import { analyzeCookies, mapPlaywrightCookies } from "../checks/cookies.js";
 import { analyzeHeaders } from "../checks/headers.js";
 import type { SecurityFinding, Severity } from "../types/results.js";
+import { diffFindings, loadBaseline, saveBaseline } from "./baseline.js";
 import { formatPRComment } from "./github-comment.js";
 import { calculateScore, meetsThreshold } from "./types.js";
 import type { CICheckOptions, CICheckResult } from "./types.js";
@@ -104,13 +105,26 @@ async function main(): Promise<void> {
 	const shouldComment = getInput("comment", "true") === "true";
 	const githubToken = getInput("github-token", "");
 
+	const baselinePath = getInput("baseline-path", "") || undefined;
+	const shouldUpdateBaseline = getInput("update-baseline", "false") === "true";
+
 	const result = await runSecurityCheck({
 		url,
 		checks,
 		failOn,
 		comment: shouldComment,
 		githubToken: githubToken || undefined,
+		baselinePath,
+		updateBaseline: shouldUpdateBaseline,
 	});
+
+	const baseline = baselinePath ? loadBaseline(baselinePath) : null;
+	const diff = baselinePath ? diffFindings(result.findings, baseline) : undefined;
+	result.diff = diff;
+
+	if (shouldUpdateBaseline && baselinePath) {
+		saveBaseline(result.findings, baselinePath);
+	}
 
 	setOutput("score", String(result.score));
 	setOutput("findings-count", String(result.findings.length));
@@ -121,6 +135,7 @@ async function main(): Promise<void> {
 		score: result.score,
 		threshold: result.threshold,
 		passed: result.passed,
+		diff,
 	});
 
 	console.log(comment);

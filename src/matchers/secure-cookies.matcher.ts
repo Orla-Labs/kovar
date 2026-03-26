@@ -1,6 +1,7 @@
 import type { BrowserContext, ExpectMatcherState } from "@playwright/test";
 import { analyzeCookies, mapPlaywrightCookies } from "../checks/cookies.js";
 import type { CookieCheckOptions } from "../types/index.js";
+import { filterFailures, formatMatcherMessage } from "../utils/matcher-helpers.js";
 
 export async function toHaveSecureCookies(
 	this: ExpectMatcherState,
@@ -11,25 +12,19 @@ export async function toHaveSecureCookies(
 	const cookies = mapPlaywrightCookies(rawCookies);
 
 	const findings = analyzeCookies(cookies, options);
-	const failures = findings.filter((f) => f.severity === "critical" || f.severity === "high");
-
+	const failures = filterFailures(findings);
 	const pass = failures.length === 0;
 
 	return {
 		pass,
-		message: () => {
-			const hint = this.utils.matcherHint("toHaveSecureCookies", undefined, undefined, {
-				isNot: this.isNot,
-			});
-			if (findings.length === 0) {
-				return `${hint}\n\nAll cookies have proper security flags.`;
-			}
-			const lines = findings.map(
-				(f) =>
-					`  [${f.severity.toUpperCase()}] ${f.cookie}: ${f.message}\n           Fix: ${f.remediation}`,
-			);
-			return `${hint}\n\n${lines.join("\n\n")}`;
-		},
+		message: () =>
+			formatMatcherMessage(
+				findings,
+				"toHaveSecureCookies",
+				"All cookies have proper security flags.",
+				this.utils,
+				this.isNot,
+			),
 		name: "toHaveSecureCookies",
 		expected: "All cookies have proper security flags",
 		actual: received,

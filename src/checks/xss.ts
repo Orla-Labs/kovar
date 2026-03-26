@@ -7,6 +7,23 @@ const CANARY_PREFIX = "kovar-xss";
 const DEFAULT_API_TIMEOUT = 5000;
 const DEFAULT_DOM_TIMEOUT = 3000;
 
+async function runWithConcurrency<T>(
+	tasks: (() => Promise<T>)[],
+	concurrency: number,
+): Promise<T[]> {
+	const results: T[] = [];
+	let index = 0;
+	async function runNext(): Promise<void> {
+		while (index < tasks.length) {
+			const i = index++;
+			const task = tasks[i];
+			if (task) results[i] = await task();
+		}
+	}
+	await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, runNext));
+	return results;
+}
+
 interface FormInfo {
 	action: string;
 	method: string;
@@ -115,11 +132,12 @@ export class XSSScanner {
 		}
 
 		const delay = options?.delayBetweenPayloads ?? 0;
+		const concurrency = options?.concurrency ?? 1;
 		const findings: SecurityFinding[] = [];
 		for (const form of forms) {
 			const formFindings =
 				options?.apiFirst !== false
-					? await this.testViaAPI(form, payloads, options?.timeout, delay)
+					? await this.testViaAPI(form, payloads, options?.timeout, delay, concurrency)
 					: await this.testViaDOM(form, payloads, options?.timeout, delay);
 			findings.push(...formFindings);
 		}
@@ -192,18 +210,37 @@ export class XSSScanner {
 		payloads: PayloadDefinition[],
 		timeout?: number,
 		delayBetweenPayloads = 0,
+		concurrency = 1,
 	): Promise<SecurityFinding[]> {
-		const findings: SecurityFinding[] = [];
-		for (const input of form.inputs) {
-			for (const payload of payloads) {
-				const finding = await this.testSinglePayloadViaAPI(form, input, payload, timeout);
-				if (finding) findings.push(finding);
-				if (delayBetweenPayloads > 0) {
-					await new Promise((resolve) => setTimeout(resolve, delayBetweenPayloads));
+		if (concurrency <= 1) {
+			const findings: SecurityFinding[] = [];
+			for (const input of form.inputs) {
+				for (const payload of payloads) {
+					const finding = await this.testSinglePayloadViaAPI(form, input, payload, timeout);
+					if (finding) findings.push(finding);
+					if (delayBetweenPayloads > 0) {
+						await new Promise((resolve) => setTimeout(resolve, delayBetweenPayloads));
+					}
 				}
 			}
+			return findings;
 		}
-		return findings;
+
+		const tasks: (() => Promise<SecurityFinding | null>)[] = [];
+		for (const input of form.inputs) {
+			for (const payload of payloads) {
+				tasks.push(async () => {
+					const finding = await this.testSinglePayloadViaAPI(form, input, payload, timeout);
+					if (delayBetweenPayloads > 0) {
+						await new Promise((resolve) => setTimeout(resolve, delayBetweenPayloads));
+					}
+					return finding;
+				});
+			}
+		}
+
+		const results = await runWithConcurrency(tasks, concurrency);
+		return results.filter((f): f is SecurityFinding => f !== null);
 	}
 
 	private async testSinglePayloadViaAPI(

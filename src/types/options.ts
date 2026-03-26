@@ -23,4 +23,6 @@ export interface XSSCheckOptions {
 	apiFirst?: boolean;
 	/** Delay in milliseconds between payload submissions. Useful for WAF-protected targets. Defaults to 0. */
 	delayBetweenPayloads?: number;
+	/** Max parallel payload tests. Defaults to 1 (serial execution). */
+	concurrency?: number;
 }

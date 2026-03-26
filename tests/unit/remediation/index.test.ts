@@ -30,6 +30,40 @@ function makeXSSFinding(): SecurityFinding {
 		severity: "critical",
 		message: "XSS reflected",
 		remediation: "Sanitize input",
+		url: "http://localhost/search",
+	};
+}
+
+function makeCSRFFinding(id: string): SecurityFinding {
+	return {
+		id,
+		category: "access-control",
+		severity: "critical",
+		message: `${id} issue`,
+		remediation: `Fix ${id}`,
+		url: "http://localhost/api",
+	};
+}
+
+function makeCORSFinding(id: string): SecurityFinding {
+	return {
+		id,
+		category: "access-control",
+		severity: "high",
+		message: `${id} issue`,
+		remediation: `Fix ${id}`,
+		url: "http://localhost/api",
+	};
+}
+
+function makeAuthFinding(id: string): SecurityFinding {
+	return {
+		id,
+		category: "authentication",
+		severity: "critical",
+		message: `${id} issue`,
+		remediation: `Fix ${id}`,
+		url: "http://localhost/api",
 	};
 }
 
@@ -55,11 +89,12 @@ describe("generateRemediation", () => {
 		expect(report.unsupported).toHaveLength(0);
 	});
 
-	it("tracks XSS findings as unsupported", () => {
+	it("generates suggestions for XSS findings", () => {
 		const findings = [makeXSSFinding()];
 		const report = generateRemediation(findings);
-		expect(report.suggestions).toHaveLength(0);
-		expect(report.unsupported).toContain("xss-reflected");
+		expect(report.suggestions).toHaveLength(1);
+		expect(report.suggestions[0]!.findingId).toBe("xss-reflected");
+		expect(report.unsupported).not.toContain("xss-reflected");
 	});
 
 	it("tracks findings from unsupported categories", () => {
@@ -118,8 +153,8 @@ describe("generateRemediation", () => {
 		];
 		const report = generateRemediation(findings, { framework: "express" });
 		expect(report.findings).toBe(4);
-		expect(report.suggestions).toHaveLength(3);
-		expect(report.unsupported).toContain("xss-reflected");
+		expect(report.suggestions).toHaveLength(4);
+		expect(report.unsupported).not.toContain("xss-reflected");
 		expect(report.unsupported).not.toContain("cookie-invalid-host-prefix");
 	});
 
@@ -146,6 +181,67 @@ describe("generateRemediation", () => {
 				expect(ref).toMatch(/^https:\/\//);
 			}
 		}
+	});
+
+	it("generates suggestions for CSRF findings", () => {
+		const findings = [makeCSRFFinding("csrf-unprotected-endpoint")];
+		const report = generateRemediation(findings, { framework: "express" });
+		expect(report.suggestions).toHaveLength(1);
+		expect(report.suggestions[0]!.findingId).toBe("csrf-unprotected-endpoint");
+		expect(report.unsupported).toHaveLength(0);
+	});
+
+	it("generates suggestions for CORS findings", () => {
+		const findings = [makeCORSFinding("cors-reflected-origin")];
+		const report = generateRemediation(findings, { framework: "express" });
+		expect(report.suggestions).toHaveLength(1);
+		expect(report.suggestions[0]!.findingId).toBe("cors-reflected-origin");
+		expect(report.unsupported).toHaveLength(0);
+	});
+
+	it("generates suggestions for auth findings", () => {
+		const findings = [makeAuthFinding("auth-missing-authentication")];
+		const report = generateRemediation(findings, { framework: "express" });
+		expect(report.suggestions).toHaveLength(1);
+		expect(report.suggestions[0]!.findingId).toBe("auth-missing-authentication");
+		expect(report.unsupported).toHaveLength(0);
+	});
+
+	it("handles mixed findings across all categories", () => {
+		const findings: SecurityFinding[] = [
+			makeHeaderFinding("header-missing-hsts"),
+			makeCookieFinding("cookie-missing-secure"),
+			makeXSSFinding(),
+			makeCSRFFinding("csrf-unprotected-endpoint"),
+			makeCORSFinding("cors-reflected-origin"),
+			makeAuthFinding("auth-missing-authentication"),
+		];
+		const report = generateRemediation(findings, { framework: "express" });
+		expect(report.findings).toBe(6);
+		expect(report.suggestions).toHaveLength(6);
+		expect(report.unsupported).toHaveLength(0);
+		const ids = report.suggestions.map((s) => s.findingId);
+		expect(ids).toContain("header-missing-hsts");
+		expect(ids).toContain("cookie-missing-secure");
+		expect(ids).toContain("xss-reflected");
+		expect(ids).toContain("csrf-unprotected-endpoint");
+		expect(ids).toContain("cors-reflected-origin");
+		expect(ids).toContain("auth-missing-authentication");
+	});
+
+	it("tracks truly unsupported findings from unknown categories", () => {
+		const findings: SecurityFinding[] = [
+			{
+				id: "crypto-weak-cipher",
+				category: "cryptography",
+				severity: "high",
+				message: "Weak cipher",
+				remediation: "Use stronger cipher",
+			},
+		];
+		const report = generateRemediation(findings);
+		expect(report.suggestions).toHaveLength(0);
+		expect(report.unsupported).toContain("crypto-weak-cipher");
 	});
 
 	it("end-to-end: all header + cookie findings produce valid report for every framework", () => {

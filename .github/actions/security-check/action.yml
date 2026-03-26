@@ -20,6 +20,14 @@ inputs:
     description: "GitHub token for PR comments"
     required: false
     default: "${{ github.token }}"
+  baseline-path:
+    description: "Path to baseline JSON file for tracking findings across PRs"
+    required: false
+    default: ""
+  update-baseline:
+    description: "Save current findings as new baseline (true/false)"
+    required: false
+    default: "false"
 outputs:
   score:
     description: "Security score (0-100)"

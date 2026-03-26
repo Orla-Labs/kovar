@@ -1,5 +1,6 @@
 import type { SecurityFinding } from "../types/results.js";
 import { summarize } from "../types/results.js";
+import type { BaselineDiff, BaselineEntry } from "./baseline.js";
 
 const SEVERITY_ICONS: Record<string, string> = {
 	critical: "\u{1F534}",
@@ -62,9 +63,19 @@ function buildDetails(findings: SecurityFinding[]): string {
 	return details.join("\n\n");
 }
 
+function buildResolvedList(resolved: BaselineEntry[]): string {
+	return resolved.map((e) => `- ~~${e.id}: ${e.severity}~~`).join("\n");
+}
+
 export function formatPRComment(
 	findings: SecurityFinding[],
-	options: { url: string; score: number; threshold: string; passed: boolean },
+	options: {
+		url: string;
+		score: number;
+		threshold: string;
+		passed: boolean;
+		diff?: BaselineDiff | undefined;
+	},
 ): string {
 	const summary = summarize(findings);
 	const status = `${statusEmoji(options.passed)} ${statusLabel(options.passed)}`;
@@ -78,7 +89,36 @@ export function formatPRComment(
 		"",
 	];
 
-	if (findings.length > 0) {
+	if (options.diff) {
+		const { diff } = options;
+
+		if (diff.new.length > 0) {
+			lines.push(`### New Findings (${diff.new.length})`);
+			lines.push("These findings are new in this PR:");
+			lines.push("");
+			lines.push(buildDetails(diff.new));
+			lines.push("");
+		}
+
+		if (diff.existing.length > 0) {
+			lines.push(`### Existing Findings (${diff.existing.length})`);
+			lines.push("These findings were already present on the base branch:");
+			lines.push("");
+			lines.push(buildDetails(diff.existing));
+			lines.push("");
+		}
+
+		if (diff.resolved.length > 0) {
+			lines.push(`### Resolved (${diff.resolved.length})`);
+			lines.push("These findings were fixed in this PR:");
+			lines.push(buildResolvedList(diff.resolved));
+			lines.push("");
+		}
+
+		if (diff.new.length === 0 && diff.existing.length === 0 && diff.resolved.length === 0) {
+			lines.push("No security findings detected.");
+		}
+	} else if (findings.length > 0) {
 		lines.push("### Findings");
 		lines.push("");
 

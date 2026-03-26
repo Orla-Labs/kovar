@@ -4,6 +4,7 @@ const TRANSIENT_NETWORK_ERRORS = new Set(["ECONNRESET", "ETIMEDOUT"]);
 const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 1000;
 const BACKOFF_MULTIPLIER = 2;
+const MAX_DELAY_MS = 8000;
 const REQUEST_TIMEOUT_MS = 60000;
 
 function sanitizeErrorMessage(msg: string): string {
@@ -43,7 +44,7 @@ function parseRetryAfterHeader(response: Response): number | null {
 }
 
 function computeDelay(attempt: number): number {
-	return INITIAL_DELAY_MS * BACKOFF_MULTIPLIER ** (attempt - 1);
+	return Math.min(INITIAL_DELAY_MS * BACKOFF_MULTIPLIER ** (attempt - 1), MAX_DELAY_MS);
 }
 
 function computeRetryDelay(response: Response, attempt: number): number {

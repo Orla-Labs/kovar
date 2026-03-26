@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { BaselineDiff } from "../../../src/ci/baseline.js";
 import { formatPRComment } from "../../../src/ci/github-comment.js";
 import type { SecurityFinding } from "../../../src/types/results.js";
 
@@ -230,5 +231,145 @@ describe("formatPRComment", () => {
 		});
 
 		expect(result).toContain("\u26A0\uFE0F FAILED");
+	});
+
+	it("shows new/existing/resolved sections when diff is provided", () => {
+		const newFinding = makeFinding({
+			id: "new-csp",
+			severity: "critical",
+			message: "CSP header is missing",
+			remediation: "Add CSP header",
+		});
+		const existingFinding = makeFinding({
+			id: "existing-hsts",
+			severity: "high",
+			message: "HSTS header is missing",
+			remediation: "Add HSTS header",
+		});
+		const diff: BaselineDiff = {
+			new: [newFinding],
+			existing: [existingFinding],
+			resolved: [
+				{
+					id: "header-missing-xcto",
+					severity: "medium",
+					url: "",
+					firstSeen: "2026-01-01T00:00:00.000Z",
+				},
+			],
+		};
+
+		const result = formatPRComment([newFinding, existingFinding], {
+			url: "https://app.example.com",
+			score: 72,
+			threshold: "high",
+			passed: false,
+			diff,
+		});
+
+		expect(result).toContain("### New Findings (1)");
+		expect(result).toContain("These findings are new in this PR:");
+		expect(result).toContain("CSP header is missing");
+		expect(result).toContain("### Existing Findings (1)");
+		expect(result).toContain("These findings were already present on the base branch:");
+		expect(result).toContain("HSTS header is missing");
+		expect(result).toContain("### Resolved (1)");
+		expect(result).toContain("These findings were fixed in this PR:");
+		expect(result).toContain("~~header-missing-xcto: medium~~");
+		expect(result).not.toContain("### Findings");
+		expect(result).not.toContain("### Details");
+	});
+
+	it("formats backward-compatible comment without diff", () => {
+		const findings: SecurityFinding[] = [
+			makeFinding({ id: "f1", severity: "high", message: "Some finding" }),
+		];
+
+		const result = formatPRComment(findings, {
+			url: "https://example.com",
+			score: 90,
+			threshold: "high",
+			passed: false,
+		});
+
+		expect(result).toContain("### Findings");
+		expect(result).toContain("### Details");
+		expect(result).toContain("Some finding");
+		expect(result).not.toContain("### New Findings");
+		expect(result).not.toContain("### Existing Findings");
+		expect(result).not.toContain("### Resolved");
+	});
+
+	it("shows only new findings section when no existing or resolved", () => {
+		const newFinding = makeFinding({
+			id: "new-1",
+			severity: "critical",
+			message: "Brand new issue",
+			remediation: "Fix it",
+		});
+		const diff: BaselineDiff = {
+			new: [newFinding],
+			existing: [],
+			resolved: [],
+		};
+
+		const result = formatPRComment([newFinding], {
+			url: "https://example.com",
+			score: 80,
+			threshold: "high",
+			passed: false,
+			diff,
+		});
+
+		expect(result).toContain("### New Findings (1)");
+		expect(result).toContain("Brand new issue");
+		expect(result).not.toContain("### Existing Findings");
+		expect(result).not.toContain("### Resolved");
+	});
+
+	it("shows only resolved section when all findings are fixed", () => {
+		const diff: BaselineDiff = {
+			new: [],
+			existing: [],
+			resolved: [
+				{ id: "fixed-1", severity: "high", url: "", firstSeen: "2026-01-01T00:00:00.000Z" },
+				{ id: "fixed-2", severity: "medium", url: "", firstSeen: "2026-01-01T00:00:00.000Z" },
+			],
+		};
+
+		const result = formatPRComment([], {
+			url: "https://example.com",
+			score: 100,
+			threshold: "high",
+			passed: true,
+			diff,
+		});
+
+		expect(result).toContain("### Resolved (2)");
+		expect(result).toContain("~~fixed-1: high~~");
+		expect(result).toContain("~~fixed-2: medium~~");
+		expect(result).not.toContain("### New Findings");
+		expect(result).not.toContain("### Existing Findings");
+	});
+
+	it("shows no findings message when diff is empty", () => {
+		const diff: BaselineDiff = {
+			new: [],
+			existing: [],
+			resolved: [],
+		};
+
+		const result = formatPRComment([], {
+			url: "https://example.com",
+			score: 100,
+			threshold: "high",
+			passed: true,
+			diff,
+		});
+
+		expect(result).toContain("No security findings detected.");
+		expect(result).not.toContain("### New Findings");
+		expect(result).not.toContain("### Existing Findings");
+		expect(result).not.toContain("### Resolved");
 	});
 });

@@ -1,5 +1,6 @@
 import type { APIRequestContext, ExpectMatcherState } from "@playwright/test";
 import { type AuthCheckOptions, checkAuth } from "../checks/auth.js";
+import { filterFailures, formatMatcherMessage } from "../utils/matcher-helpers.js";
 
 export async function toRequireAuthentication(
 	this: ExpectMatcherState,
@@ -8,24 +9,19 @@ export async function toRequireAuthentication(
 	options?: AuthCheckOptions,
 ) {
 	const findings = await checkAuth(received, url, options);
-	const failures = findings.filter((f) => f.severity === "critical" || f.severity === "high");
-
+	const failures = filterFailures(findings);
 	const pass = failures.length === 0;
 
 	return {
 		pass,
-		message: () => {
-			const hint = this.utils.matcherHint("toRequireAuthentication", undefined, undefined, {
-				isNot: this.isNot,
-			});
-			if (findings.length === 0) {
-				return `${hint}\n\nAuthentication is properly enforced.`;
-			}
-			const lines = findings.map(
-				(f) => `  [${f.severity.toUpperCase()}] ${f.message}\n           Fix: ${f.remediation}`,
-			);
-			return `${hint}\n\n${lines.join("\n\n")}`;
-		},
+		message: () =>
+			formatMatcherMessage(
+				findings,
+				"toRequireAuthentication",
+				"Authentication is properly enforced.",
+				this.utils,
+				this.isNot,
+			),
 		name: "toRequireAuthentication",
 		expected: "Endpoint requires authentication",
 		actual: received,

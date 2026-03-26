@@ -30,7 +30,7 @@ export function detectFramework(packageJsonPath?: string): Framework {
 	return "generic";
 }
 
-function escapeStr(s: string): string {
+export function escapeStr(s: string): string {
 	return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r");
 }
 

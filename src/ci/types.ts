@@ -1,4 +1,5 @@
 import type { SecurityFinding, Severity } from "../types/results.js";
+import type { BaselineDiff } from "./baseline.js";
 
 export interface CICheckOptions {
 	url: string;
@@ -6,6 +7,8 @@ export interface CICheckOptions {
 	failOn: Severity;
 	comment: boolean;
 	githubToken?: string | undefined;
+	baselinePath?: string | undefined;
+	updateBaseline?: boolean | undefined;
 }
 
 export interface CICheckResult {
@@ -14,6 +17,7 @@ export interface CICheckResult {
 	score: number;
 	passed: boolean;
 	threshold: Severity;
+	diff?: BaselineDiff | undefined;
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = {
