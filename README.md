@@ -59,7 +59,7 @@ test("login page has secure headers", async ({ page }) => {
 
 ## Documentation
 
-Full documentation is available at **[kovar.dev](https://kovar.orlalabs.com)**.
+Full documentation is available at **[kovar.orlalabs.com](https://kovar.orlalabs.com)**.
 
 ## License
 
