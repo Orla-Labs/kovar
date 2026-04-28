@@ -32,6 +32,7 @@ function parseCliArgs() {
 			model: { type: "string" },
 			heal: { type: "boolean", default: false },
 			"heal-attempts": { type: "string", default: "3" },
+			"db-path": { type: "string" },
 			help: { type: "boolean", short: "h" },
 		},
 	});
@@ -43,6 +44,19 @@ async function executeCommand(
 	positionals: string[],
 	values: Record<string, string | boolean | undefined>,
 ): Promise<void> {
+	if (command === "mcp") {
+		const { startMcpServer } = await import("./mcp/index.js");
+		const dbPath = values["db-path"] as string | undefined;
+		try {
+			await startMcpServer(dbPath ? { dbPath } : {});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			console.error(`\n  ✗ MCP server failed: ${message}\n`);
+			process.exit(1);
+		}
+		return;
+	}
+
 	if (command !== "record") {
 		console.error(`Unknown command: ${command}\n`);
 		printUsage();
@@ -101,6 +115,7 @@ function printUsage() {
 
   Commands:
     record <url>    Open a browser, record your actions, generate a Playwright test
+    mcp             Start the Kovar MCP server on stdio
 
   Options:
     -o, --output        Output directory (default: ./tests)
@@ -110,16 +125,19 @@ function printUsage() {
     --model             LLM model (default: claude-sonnet-4-20250514 or gpt-4o)
     --heal              Run generated test and auto-fix failures (up to 3 attempts)
     --heal-attempts N   Max self-healing attempts (default: 3)
+    --db-path           Override SQLite path for the MCP server (default: ~/.kovar/runs.db)
     -h, --help          Show this help message
 
   Environment:
     ANTHROPIC_API_KEY   API key for Claude
     OPENAI_API_KEY      API key for GPT-4o
+    KOVAR_DB_PATH       Override SQLite path for the MCP server
 
   Examples:
     kovar record https://myapp.com
     kovar record https://myapp.com -o ./e2e -n checkout-flow
     kovar record https://myapp.com -s ./src
+    kovar mcp
 `);
 }
 

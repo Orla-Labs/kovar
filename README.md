@@ -57,6 +57,52 @@ test("login page has secure headers", async ({ page }) => {
 - **[Self-Healing](https://kovar.orlalabs.com/recorder/self-healing)** -- auto-fix test failures after recording
 - **[Codebase Awareness](https://kovar.orlalabs.com/recorder/codebase-awareness)** -- source-verified locators for higher test stability
 
+### MCP Server
+
+Local-first MCP server for recording, asserting, and replaying agent runs. Runs go to `~/.kovar/runs.db` (no cloud, no auth — override with `KOVAR_DB_PATH`). Tools exposed: `record_run`, `assert_tool_called`, `assert_no_drift`, `assert_cost_under`, `replay_run`, `record_canonical`, `get_run`, `list_runs`.
+
+Add to your MCP client config (Claude Code: `~/.claude.json` or project `.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "kovar": {
+      "command": "npx",
+      "args": ["-y", "@orlalabs/kovar", "mcp"]
+    }
+  }
+}
+```
+
+Then in a session, ask the agent to record what it did and assert against it:
+
+```
+You: Solve the bug, then call record_run with run_id="fix-1" capturing every tool
+     you used (tool_name, args, timestamp).
+You: Now call assert_tool_called(run_id="fix-1", tool_name="Read", args={path:
+     "src/auth.ts"}).
+You: If that passed, save it as a canonical: record_canonical(name="auth-fix",
+     run_ids=["fix-1"]).
+```
+
+Or embed it in your own test suite via the public API:
+
+```typescript
+import { Store, HANDLERS } from "@orlalabs/kovar/mcp";
+
+const store = new Store({ dbPath: ":memory:" });
+HANDLERS.record_run(store, {
+  agent_id: "demo",
+  run_id: "r1",
+  events: [
+    { tool_name: "Read", args: { path: "src/auth.ts" }, timestamp: Date.now() },
+    { tool_name: "Edit", args: { path: "src/auth.ts" }, timestamp: Date.now() },
+  ],
+});
+const result = HANDLERS.assert_tool_called(store, { run_id: "r1", tool_name: "Read" });
+// { passed: true, actual_count: 1, ... }
+```
+
 ## Documentation
 
 Full documentation is available at **[kovar.orlalabs.com](https://kovar.orlalabs.com)**.
