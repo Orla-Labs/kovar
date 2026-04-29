@@ -33,27 +33,106 @@ function parseCliArgs() {
 			heal: { type: "boolean", default: false },
 			"heal-attempts": { type: "string", default: "3" },
 			"db-path": { type: "string" },
+			"agent-id": { type: "string" },
+			"run-id": { type: "string" },
+			format: { type: "string" },
 			help: { type: "boolean", short: "h" },
 		},
 	});
 	return { values, positionals };
 }
 
+type CliValues = Record<string, string | boolean | undefined>;
+
+async function runMcpProxy(positionals: string[], values: CliValues): Promise<void> {
+	const childCommand = positionals[2];
+	if (!childCommand) {
+		console.error(
+			"Error: child command is required.\n  Usage: kovar mcp proxy <command> [args...]\n",
+		);
+		process.exit(1);
+	}
+	const childArgs = positionals.slice(3);
+	const { startProxyServer } = await import("./mcp/index.js");
+	const dbPath = values["db-path"] as string | undefined;
+	const agentId = values["agent-id"] as string | undefined;
+	const runId = values["run-id"] as string | undefined;
+	try {
+		await startProxyServer({
+			command: childCommand,
+			args: childArgs,
+			...(dbPath ? { dbPath } : {}),
+			...(agentId ? { agentId } : {}),
+			...(runId ? { runId } : {}),
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.error(`\n  ✗ MCP proxy failed: ${message}\n`);
+		process.exit(1);
+	}
+}
+
+async function runMcpServer(values: CliValues): Promise<void> {
+	const { startMcpServer } = await import("./mcp/index.js");
+	const dbPath = values["db-path"] as string | undefined;
+	try {
+		await startMcpServer(dbPath ? { dbPath } : {});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.error(`\n  ✗ MCP server failed: ${message}\n`);
+		process.exit(1);
+	}
+}
+
+async function runIngest(positionals: string[], values: CliValues): Promise<void> {
+	const filePath = positionals[1];
+	if (!filePath) {
+		console.error("Error: file path is required.\n  Usage: kovar ingest <file> --format <fmt>\n");
+		process.exit(1);
+	}
+	const format = values.format as string | undefined;
+	if (!format) {
+		console.error("Error: --format is required.\n  Usage: kovar ingest <file> --format <fmt>\n");
+		process.exit(1);
+	}
+	const { ingestFile } = await import("./mcp/index.js");
+	const dbPath = values["db-path"] as string | undefined;
+	const agentId = values["agent-id"] as string | undefined;
+	const runId = values["run-id"] as string | undefined;
+	try {
+		const result = await ingestFile({
+			filePath,
+			format,
+			...(agentId ? { agentId } : {}),
+			...(runId ? { runId } : {}),
+			...(dbPath ? { dbPath } : {}),
+		});
+		console.error(
+			`  ✓ Ingested ${result.eventCount} events, ${result.messageCount} messages into run ${result.runId}\n`,
+		);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.error(`\n  ✗ Ingest failed: ${message}\n`);
+		process.exit(1);
+	}
+}
+
 async function executeCommand(
 	command: string,
 	positionals: string[],
-	values: Record<string, string | boolean | undefined>,
+	values: CliValues,
 ): Promise<void> {
 	if (command === "mcp") {
-		const { startMcpServer } = await import("./mcp/index.js");
-		const dbPath = values["db-path"] as string | undefined;
-		try {
-			await startMcpServer(dbPath ? { dbPath } : {});
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.error(`\n  ✗ MCP server failed: ${message}\n`);
-			process.exit(1);
+		if (positionals[1] === "proxy") {
+			await runMcpProxy(positionals, values);
+			return;
 		}
+		await runMcpServer(values);
+		return;
+	}
+
+	if (command === "ingest") {
+		await runIngest(positionals, values);
 		return;
 	}
 
@@ -114,8 +193,10 @@ function printUsage() {
   kovar — Security testing assertions + AI-powered test recording for Playwright
 
   Commands:
-    record <url>    Open a browser, record your actions, generate a Playwright test
-    mcp             Start the Kovar MCP server on stdio
+    record <url>                    Open a browser, record your actions, generate a Playwright test
+    mcp                             Start the Kovar MCP server on stdio
+    mcp proxy <cmd> [args...]       Proxy an MCP child server, snooping tools/call traffic
+    ingest <file> --format <fmt>    Ingest a session file via a registered adapter
 
   Options:
     -o, --output        Output directory (default: ./tests)
@@ -126,6 +207,9 @@ function printUsage() {
     --heal              Run generated test and auto-fix failures (up to 3 attempts)
     --heal-attempts N   Max self-healing attempts (default: 3)
     --db-path           Override SQLite path for the MCP server (default: ~/.kovar/runs.db)
+    --agent-id          Agent id for proxy/ingest run records (default: proxy or ingest)
+    --run-id            Override run id (default: auto-generated)
+    --format            Adapter name for ingest (e.g. kovar-jsonl, claude-code)
     -h, --help          Show this help message
 
   Environment:
@@ -138,6 +222,9 @@ function printUsage() {
     kovar record https://myapp.com -o ./e2e -n checkout-flow
     kovar record https://myapp.com -s ./src
     kovar mcp
+    kovar mcp proxy npx @some/mcp-server arg1 arg2
+    kovar ingest ./session.jsonl --format kovar-jsonl
+    kovar ingest ~/.claude/projects/foo/bar.jsonl --format claude-code
 `);
 }
 

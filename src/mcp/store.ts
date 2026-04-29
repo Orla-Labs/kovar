@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import Database, { type Database as Db } from "better-sqlite3";
 import { resolveDbPath } from "./paths.js";
-import type { Canonical, Run, ToolCallEvent } from "./types.js";
+import type { Canonical, Message, Run, ToolCallEvent } from "./types.js";
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS runs (
@@ -34,7 +34,35 @@ CREATE TABLE IF NOT EXISTS canonicals (
 	tool_sequence TEXT NOT NULL,
 	created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS meta (
+	key TEXT PRIMARY KEY,
+	value TEXT NOT NULL
+);
 `;
+
+const MIGRATIONS: { version: number; sql: string }[] = [
+	{
+		version: 1,
+		sql: `
+ALTER TABLE events ADD COLUMN tokens_in INTEGER;
+ALTER TABLE events ADD COLUMN tokens_out INTEGER;
+
+CREATE TABLE IF NOT EXISTS messages (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+	seq INTEGER NOT NULL,
+	role TEXT NOT NULL,
+	content TEXT NOT NULL,
+	tokens INTEGER,
+	timestamp INTEGER NOT NULL,
+	UNIQUE(run_id, seq)
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_run_id ON messages(run_id);
+`,
+	},
+];
 
 export interface StoreOptions {
 	dbPath?: string;
@@ -57,6 +85,8 @@ interface EventRow {
 	args: string;
 	result: string | null;
 	cost_usd: number | null;
+	tokens_in: number | null;
+	tokens_out: number | null;
 	timestamp: number;
 }
 
@@ -64,6 +94,21 @@ interface CanonicalRow {
 	name: string;
 	tool_sequence: string;
 	created_at: number;
+}
+
+interface MessageRow {
+	id: number;
+	run_id: string;
+	seq: number;
+	role: string;
+	content: string;
+	tokens: number | null;
+	timestamp: number;
+}
+
+interface MetaRow {
+	key: string;
+	value: string;
 }
 
 function rowToRun(row: RunRow): Run {
@@ -86,6 +131,8 @@ function rowToEvent(row: EventRow): ToolCallEvent {
 		args: JSON.parse(row.args) as Record<string, unknown>,
 		result: row.result === null ? null : (JSON.parse(row.result) as unknown),
 		costUsd: row.cost_usd,
+		tokensIn: row.tokens_in,
+		tokensOut: row.tokens_out,
 		timestamp: row.timestamp,
 	};
 }
@@ -98,7 +145,24 @@ function rowToCanonical(row: CanonicalRow): Canonical {
 	};
 }
 
-export type EventInput = Omit<ToolCallEvent, "id" | "seq" | "runId">;
+function rowToMessage(row: MessageRow): Message {
+	return {
+		id: row.id,
+		runId: row.run_id,
+		seq: row.seq,
+		role: row.role,
+		content: row.content,
+		tokens: row.tokens,
+		timestamp: row.timestamp,
+	};
+}
+
+export type EventInput = Omit<ToolCallEvent, "id" | "seq" | "runId" | "tokensIn" | "tokensOut"> & {
+	tokensIn?: number | null;
+	tokensOut?: number | null;
+};
+
+export type MessageInput = Omit<Message, "id" | "seq" | "runId">;
 
 export class Store {
 	private readonly db: Db;
@@ -110,6 +174,29 @@ export class Store {
 		this.db.pragma("journal_mode = WAL");
 		this.db.pragma("foreign_keys = ON");
 		this.db.exec(SCHEMA_SQL);
+		this.runMigrations();
+	}
+
+	private runMigrations(): void {
+		const row = this.db.prepare("SELECT value FROM meta WHERE key = ?").get("schema_version") as
+			| MetaRow
+			| undefined;
+		const current = row ? Number.parseInt(row.value, 10) : 0;
+		const setVersion = this.db.prepare(
+			`INSERT INTO meta (key, value) VALUES ('schema_version', ?)
+				ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		);
+		for (const migration of MIGRATIONS) {
+			if (migration.version <= current) continue;
+			const apply = this.db.transaction(() => {
+				this.db.exec(migration.sql);
+				setVersion.run(String(migration.version));
+			});
+			apply();
+		}
+		if (current === 0 && MIGRATIONS.length === 0) {
+			setVersion.run("0");
+		}
 	}
 
 	close(): void {
@@ -129,6 +216,46 @@ export class Store {
 				run.endedAt,
 				JSON.stringify(run.metadata),
 			);
+	}
+
+	createRunWithEvents(run: Run, events: EventInput[]): ToolCallEvent[] {
+		const out: ToolCallEvent[] = [];
+		const tx = this.db.transaction(() => {
+			this.db
+				.prepare(
+					"INSERT INTO runs (id, agent_id, status, started_at, ended_at, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+				)
+				.run(
+					run.id,
+					run.agentId,
+					run.status,
+					run.startedAt,
+					run.endedAt,
+					JSON.stringify(run.metadata),
+				);
+			if (events.length === 0) return;
+			const insert = this.db.prepare(
+				"INSERT INTO events (run_id, seq, tool_name, args, result, cost_usd, tokens_in, tokens_out, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *",
+			);
+			let seq = 0;
+			for (const e of events) {
+				const inserted = insert.get(
+					run.id,
+					seq,
+					e.toolName,
+					JSON.stringify(e.args ?? {}),
+					e.result === undefined ? null : JSON.stringify(e.result),
+					e.costUsd,
+					e.tokensIn ?? null,
+					e.tokensOut ?? null,
+					e.timestamp,
+				) as EventRow;
+				out.push(rowToEvent(inserted));
+				seq++;
+			}
+		});
+		tx();
+		return out;
 	}
 
 	updateRunStatus(runId: string, status: Run["status"], endedAt?: number): void {
@@ -157,7 +284,7 @@ export class Store {
 			.prepare("SELECT COALESCE(MAX(seq), -1) + 1 AS next FROM events WHERE run_id = ?")
 			.get(runId) as { next: number };
 		const insert = this.db.prepare(
-			"INSERT INTO events (run_id, seq, tool_name, args, result, cost_usd, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *",
+			"INSERT INTO events (run_id, seq, tool_name, args, result, cost_usd, tokens_in, tokens_out, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *",
 		);
 		const out: ToolCallEvent[] = [];
 		const tx = this.db.transaction((items: EventInput[]) => {
@@ -170,6 +297,8 @@ export class Store {
 					JSON.stringify(e.args ?? {}),
 					e.result === undefined ? null : JSON.stringify(e.result),
 					e.costUsd,
+					e.tokensIn ?? null,
+					e.tokensOut ?? null,
 					e.timestamp,
 				) as EventRow;
 				out.push(rowToEvent(inserted));
@@ -185,6 +314,41 @@ export class Store {
 			.prepare("SELECT * FROM events WHERE run_id = ? AND seq >= ? ORDER BY seq ASC")
 			.all(runId, fromSeq);
 		return (rows as EventRow[]).map(rowToEvent);
+	}
+
+	appendMessages(runId: string, messages: MessageInput[]): Message[] {
+		if (messages.length === 0) return [];
+		const row = this.db
+			.prepare("SELECT COALESCE(MAX(seq), -1) + 1 AS next FROM messages WHERE run_id = ?")
+			.get(runId) as { next: number };
+		const insert = this.db.prepare(
+			"INSERT INTO messages (run_id, seq, role, content, tokens, timestamp) VALUES (?, ?, ?, ?, ?, ?) RETURNING *",
+		);
+		const out: Message[] = [];
+		const tx = this.db.transaction((items: MessageInput[]) => {
+			let seq = row.next;
+			for (const m of items) {
+				const inserted = insert.get(
+					runId,
+					seq,
+					m.role,
+					m.content,
+					m.tokens,
+					m.timestamp,
+				) as MessageRow;
+				out.push(rowToMessage(inserted));
+				seq++;
+			}
+		});
+		tx(messages);
+		return out;
+	}
+
+	getMessages(runId: string): Message[] {
+		const rows = this.db
+			.prepare("SELECT * FROM messages WHERE run_id = ? ORDER BY seq ASC")
+			.all(runId);
+		return (rows as MessageRow[]).map(rowToMessage);
 	}
 
 	upsertCanonical(canonical: Canonical): void {

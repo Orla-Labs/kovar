@@ -17,6 +17,18 @@ export interface ToolCallEvent {
 	args: Record<string, unknown>;
 	result: unknown;
 	costUsd: number | null;
+	tokensIn: number | null;
+	tokensOut: number | null;
+	timestamp: number;
+}
+
+export interface Message {
+	id: number;
+	runId: string;
+	seq: number;
+	role: string;
+	content: string;
+	tokens: number | null;
 	timestamp: number;
 }
 
