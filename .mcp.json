@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"kovar": {
+			"command": "node",
+			"args": ["./bin/kovar.js", "mcp"]
+		}
+	}
+}
