@@ -31,6 +31,34 @@ export default defineConfig({
 					],
 				},
 				{
+					label: "MCP Server",
+					items: [
+						{ label: "Introduction", slug: "mcp/introduction" },
+						{ label: "Installation", slug: "mcp/installation" },
+						{ label: "Storage & Schema", slug: "mcp/storage" },
+						{ label: "Error Codes", slug: "mcp/error-codes" },
+						{ label: "Recipes", slug: "mcp/recipes" },
+					],
+				},
+				{
+					label: "MCP Tools",
+					items: [
+						{ label: "Recording", slug: "mcp/tools/recording" },
+						{ label: "Assertions", slug: "mcp/tools/assertions" },
+						{ label: "Replay & Diff", slug: "mcp/tools/replay-and-diff" },
+						{ label: "Canonicals", slug: "mcp/tools/canonicals" },
+						{ label: "Inspection", slug: "mcp/tools/inspection" },
+					],
+				},
+				{
+					label: "Auto-Capture",
+					items: [
+						{ label: "MCP Proxy", slug: "mcp/auto-capture/proxy" },
+						{ label: "File Ingest", slug: "mcp/auto-capture/ingest" },
+						{ label: "Writing Adapters", slug: "mcp/auto-capture/adapters" },
+					],
+				},
+				{
 					label: "Security Checks",
 					items: [
 						{ label: "Headers", slug: "checks/headers" },

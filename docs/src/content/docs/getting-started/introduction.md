@@ -38,6 +38,12 @@ Beyond security checks, Kovar also provides:
 - **[Reporter](/ci/reporter)** -- Playwright reporter with security score cards.
 - **[AI Recorder](/recorder/getting-started)** -- Record browser sessions and generate Page Object Model tests with resilient locators.
 
+## Beyond Playwright: the MCP Server
+
+v0.6.0 added a separate surface that has nothing to do with Playwright: a local Model Context Protocol server for asserting on AI agent runs. Same package, same install, completely different use case.
+
+The agent itself is the caller. It records what it just did into a local SQLite file, then calls assertion tools — `assert_tool_called`, `assert_no_drift`, `assert_cost_under`, `assert_no_loops`, and others — to enforce post-conditions on the run. No SaaS, no cloud, harness-agnostic. See [MCP Server](/mcp/introduction/).
+
 ## Design Principles
 
 - **Zero runtime dependencies** -- only a peer dependency on `@playwright/test`.

@@ -14,3 +14,18 @@ hero:
       variant: minimal
       icon: external
 ---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <LinkCard
+    title="Playwright Security"
+    description="Security assertions, recorder, fixtures, and matchers for Playwright tests."
+    href="/getting-started/introduction/"
+  />
+  <LinkCard
+    title="MCP Server"
+    description="Local-first MCP server for asserting on agent runs. 15 tools, one SQLite file, zero cloud."
+    href="/mcp/introduction/"
+  />
+</CardGrid>
