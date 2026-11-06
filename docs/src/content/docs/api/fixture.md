@@ -5,11 +5,18 @@ description: Programmatic access to security checks with assert and check modes
 
 The `security` fixture gives programmatic access to all security checks. It's injected automatically when you import from `@orlalabs/kovar`.
 
+:::note[Which requests carry your login]
+- `security.headers`, `security.xss` and `security.csrf` use the page's own cookie jar (`page.context().request`), so on a page behind login they test that page. `security.headers` re-requests `page.url()` rather than reusing the navigation response; to check exactly the response the browser got, use `expect(response).toHaveSecureHeaders()`.
+- `security.auth` probes from an isolated context with **no** cookies or credentials, by design.
+- `security.cors` uses the test's `request` fixture.
+- A check that could not run reports a high finding (for example `headers-check-skipped` before any navigation, `audit-page-closed` on a closed page) instead of passing.
+:::
+
 ## Two Modes
 
 Each check category supports two modes:
 
-- **`.assert()`** -- throws if any critical or high severity findings exist. Use this for pass/fail tests.
+- **`.assert()`** -- throws a `SecurityAssertionError` (listing each finding with a `Fix:` line) if any critical or high severity findings exist. Use this for pass/fail tests.
 - **`.check()`** -- returns all findings without throwing, so you can inspect and filter them.
 
 ## Usage
@@ -20,15 +27,14 @@ import { test, expect } from "@orlalabs/kovar";
 test("verify security after login", async ({ page, security }) => {
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email" }).fill("user@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("password");
+  await page.getByLabel("Password").fill("password");
   await page.getByRole("button", { name: "Sign In" }).click();
   await page.waitForURL("/dashboard");
 
   // Throws on critical/high findings:
   await security.headers.assert();
   await security.cookies.assert();
-  await security.csrf.assert();
-  await security.auth.assert();
+  // csrf/auth send real POST/PUT/DELETE requests to page.url() -- see their pages
 
   // Or inspect findings manually:
   const corsFindings = await security.cors.check();

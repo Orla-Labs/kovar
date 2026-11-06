@@ -11,6 +11,7 @@ export interface SecurityMatchers<R> {
 	toBeCSRFProtected(url: string, options?: CSRFCheckOptions): Promise<R>;
 	toHaveSecureCORS(url: string, options?: CORSCheckOptions): Promise<R>;
 	toRequireAuthentication(url: string, options?: AuthCheckOptions): Promise<R>;
+	/** @deprecated Removed in Kovar 0.8. Use @axe-core/playwright. */
 	toBeAccessible(options?: AccessibilityCheckOptions): Promise<R>;
 }
 

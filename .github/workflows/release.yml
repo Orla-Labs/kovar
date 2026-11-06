@@ -2,30 +2,71 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    # Release tags only (v0.7.0, v0.7.0-rc.1). The moving major tag (v0) used by
+    # `uses: Orla-Labs/kovar/...@v0` must not trigger a publish.
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: read
 
 jobs:
   # Run the full CI suite first — release won't publish unless all checks pass
   ci:
     uses: ./.github/workflows/ci.yml
 
+  # The OIDC token (id-token: write) can publish to npm, so this job runs no
+  # third-party actions and no dependency install scripts.
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [ci]
     permissions:
-      contents: write
+      contents: read
       id-token: write
     environment: npm
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      # The tag must equal package.json's version. This keeps an rc tag from
+      # publishing the final version, and keeps `uses: ...@<tag>` (which installs the
+      # Kovar version in package.json at that ref) pointing at what was published.
+      # Prereleases (any version with a "-") go to the `next` dist-tag, never `latest`.
+      - name: Check tag against package.json and choose the dist-tag
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "v$pkg" != "$REF_NAME" ]; then
+            echo "::error::Tag $REF_NAME does not match package.json version $pkg"
+            exit 1
+          fi
+          case "$pkg" in
+            *-*) echo "dist-tag=next" >> "$GITHUB_OUTPUT"; echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "dist-tag=latest" >> "$GITHUB_OUTPUT"; echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: lts/*
           registry-url: https://registry.npmjs.org
-      - run: npm install -g npm@latest
-      - run: npm ci
+      - run: npm install -g npm@11.21.2
+      - run: npm ci --ignore-scripts
       - run: npm run build
-      - run: npm publish --provenance --access public
-      - uses: softprops/action-gh-release@v2
+      - run: npm publish --provenance --access public --ignore-scripts --tag "$DIST_TAG"
+        env:
+          DIST_TAG: ${{ steps.version.outputs.dist-tag }}
+
+  github-release:
+    runs-on: ubuntu-24.04
+    needs: [publish]
+    permissions:
+      contents: write
+    steps:
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           generate_release_notes: true
+          prerelease: ${{ needs.publish.outputs.prerelease == 'true' }}

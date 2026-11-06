@@ -178,8 +178,8 @@ describe("RecordingSession — generateTest fallback", () => {
 		writeMock.mockClear();
 		existsMock.mockReturnValue(false);
 
-		// Import and test writeTestFile directly (the fallback function)
-		const { writeTestFile } = await import("../../../src/recorder/codegen.js");
+		// Import and test writeRecordingFile directly (the fallback function)
+		const { writeRecordingFile } = await import("../../../src/recorder/codegen.js");
 
 		const sessionData = {
 			startUrl: "http://localhost:3000",
@@ -192,16 +192,17 @@ describe("RecordingSession — generateTest fallback", () => {
 			endTime: 2000,
 		};
 
-		const fallbackPath = writeTestFile(
+		const fallbackPath = writeRecordingFile(
 			"/tmp/test-output",
-			"test.recording",
+			"test",
 			JSON.stringify(sessionData, null, 2),
 		);
 
 		expect(writeMock).toHaveBeenCalled();
 		const writtenContent = writeMock.mock.calls[0][1] as string;
 		expect(writtenContent).toContain("http://localhost:3000");
-		expect(fallbackPath).toContain("test.recording");
+		expect(fallbackPath).toMatch(/test\.recording\.json$/);
+		expect(fallbackPath).not.toMatch(/\.spec\.ts$/);
 	});
 
 	it("generated code fails validateSpecCode — falls back to raw JSON", async () => {

@@ -13,7 +13,7 @@ import { test, expect } from "@orlalabs/kovar";
 test("session cookies are secure after login", async ({ page, context }) => {
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email" }).fill("user@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("password");
+  await page.getByLabel("Password").fill("password");
   await page.getByRole("button", { name: "Sign In" }).click();
 
   await expect(context).toHaveSecureCookies();
@@ -36,9 +36,26 @@ test("session cookies are secure after login", async ({ page, context }) => {
 
 ## Session Cookie Detection
 
-Session cookies are detected by name patterns: `sess`, `token`, `auth`, `csrf`, `jwt`, `sid`, `login`, `PHPSESSID`, `JSESSIONID`, `ASPSESSIONID`, `connect.sid`.
+Session cookies are detected by name (case-insensitive unless noted). Examples below are checked against the 0.7.0 patterns in `src/checks/cookies.ts`:
 
-You can extend this list with the `sessionCookiePatterns` option.
+| Rule | Matches | Does not match |
+|------|---------|----------------|
+| contains `session` | `session`, `vercel_session_id`, `laravel_session`, `_app_session`, `ci_session`, `appSession`, `next-auth.session-token` | |
+| `sess` as its own word, or `sessid` | `sess`, `my-sess`, `sessid` | |
+| `auth` at the start or after a non-letter; camelCase `…Auth` (case-sensitive) | `auth_token`, `appAuth` | `oauth_state`, `myauth` |
+| `jwt` as a word | `jwt` | `jwtToken` |
+| `sid` delimited by start/end, `_` or `-` | `sid`, `user-sid` | `sidebar` |
+| starts a word with `login` | `login_state` | |
+| ends in `_token` or `-token` | `access_token` | `token`, `accessToken` |
+| exact | `PHPSESSID`, `JSESSIONID`, `ASPSESSIONID*`, `connect.sid` | |
+
+CSRF double-submit cookies are **never** treated as session cookies, because they must be readable by JavaScript: `XSRF-TOKEN`, `csrftoken`, `csrf_token`, `__Host-csrf` and similar.
+
+If your session cookie is not matched, it is checked with the weaker non-session rules (missing `Secure` is only **medium**, missing `HttpOnly` is not reported). Add your cookie name with `sessionCookiePatterns`.
+
+```typescript
+await expect(context).toHaveSecureCookies({ sessionCookiePatterns: [/^vercel_session_id$/, /_session$/] });
+```
 
 ## Options
 

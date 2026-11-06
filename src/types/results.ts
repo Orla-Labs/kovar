@@ -44,6 +44,8 @@ export interface SecurityReport {
 	duration: number;
 	findings: SecurityFinding[];
 	summary: SecuritySummary;
+	/** Check families that actually ran. A family absent here was not tested. */
+	checksRun?: string[];
 }
 
 export function summarize(findings: SecurityFinding[]): SecuritySummary {

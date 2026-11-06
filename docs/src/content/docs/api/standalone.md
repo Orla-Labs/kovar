@@ -70,14 +70,6 @@ import { generateRemediation } from "@orlalabs/kovar/core";
 
 See [Auto-Remediation](/remediation/overview) for usage.
 
-### Compliance Evaluation
-
-```typescript
-import { evaluateASVS, evaluatePCIDSS, formatComplianceReport } from "@orlalabs/kovar/core";
-```
-
-See [OWASP ASVS](/compliance/owasp-asvs) and [PCI-DSS](/compliance/pci-dss) for usage.
-
 ## Finding Shape
 
 Every check function returns `SecurityFinding[]`. Each finding has a consistent shape:
@@ -95,9 +87,9 @@ interface SecurityFinding {
   payload?: string;            // for XSS findings
   evidence?: string;           // for XSS findings
   cweId?: string;              // e.g. "CWE-352", "CWE-942"
-  cvssScore?: number;          // CVSS v3.1 base score (0-10)
-  cvssVector?: string;         // CVSS v3.1 vector string
-  references?: string[];       // links to relevant standards or docs
+  cvssScore?: number;          // reserved; not populated by any check
+  cvssVector?: string;         // reserved; not populated by any check
+  references?: string[];       // reserved; not populated by any check
 }
 ```
 

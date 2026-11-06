@@ -3,6 +3,10 @@ title: MCP Server
 description: Local-first MCP server for asserting on agent runs
 ---
 
+:::caution[Deprecated in 0.7.0, removed in 0.8]
+The MCP server (`kovar mcp`, `kovar mcp proxy`, `kovar ingest`, `@orlalabs/kovar/mcp`) is moving to Orla Labs Caliper. Kovar 0.7 still ships it and prints a `DeprecationWarning` (to stderr, so the stdio protocol is unaffected). Kovar 0.8 removes it.
+:::
+
 Kovar ships a local Model Context Protocol server that records agent runs to SQLite and exposes assertion + replay primitives back to the agent as MCP tools. The agent itself is the caller: it records what it just did, then asserts on it.
 
 ## The wedge

@@ -7,9 +7,9 @@ The Kovar recorder generates three types of files: page objects, test specs, and
 
 ## Page Object
 
-A page object class is generated for each page visited during the recording session.
+A page object class is generated for each page visited during the recording session. All classes are written to a single file named after the test, `tests/pages/<test-name>.page.ts`.
 
-**Example** (`tests/pages/login.page.ts`):
+**Example** (one class from `tests/pages/login-dashboard.page.ts`):
 
 ```typescript
 import type { Page } from "@playwright/test";
@@ -47,7 +47,7 @@ A test spec ties page objects together into a test scenario.
 
 ```typescript
 import { test, expect } from "@playwright/test";
-import { LoginPage } from "./pages/login.page";
+import { LoginPage } from "./pages/login-dashboard.page";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const EMAIL = process.env.TEST_EMAIL ?? "";
@@ -83,7 +83,7 @@ TEST_PASSWORD=your-password
 - **No hardcoded URLs** -- the app origin is replaced with `process.env.BASE_URL`.
 - **No hardcoded credentials** -- passwords, emails, and tokens use `process.env.*` variables.
 - **Resilient locators** -- prefers `getByRole` > `getByText` > `getByTestId` > `getByPlaceholder` > CSS selectors.
-- **One page object per page** -- class names inferred from URL paths (`/login` -> `LoginPage`, `/dashboard` -> `DashboardPage`).
+- **One page object class per page** (all in one file) -- class names inferred from URL paths (`/login` -> `LoginPage`, `/dashboard` -> `DashboardPage`).
 - **Intent comments** -- `// Intent:` comments group logical action sequences in the spec.
 
 ## Credential Masking

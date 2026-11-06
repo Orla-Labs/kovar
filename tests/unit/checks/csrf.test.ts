@@ -210,16 +210,79 @@ describe("checkCSRF", () => {
 		});
 		const request = makeRequest({ fetch: fetchMock });
 		await checkCSRF(request, "https://example.com/api");
-		expect(fetchMock).toHaveBeenCalledTimes(4);
+		// one same-origin control GET + POST, PUT, DELETE, PATCH probes
+		expect(fetchMock).toHaveBeenCalledTimes(5);
 	});
 
-	it("handles network errors gracefully", async () => {
+	it("reports unreachable endpoints as a failing finding instead of passing silently", async () => {
 		const request = makeRequest({
 			fetch: vi.fn().mockRejectedValue(new Error("Network error")),
 			get: vi.fn().mockRejectedValue(new Error("Network error")),
 		});
 		const findings = await checkCSRF(request, "https://example.com/api");
-		expect(findings).toHaveLength(0);
+		expect(findings.map((f) => [f.id, f.severity])).toEqual([["csrf-check-error", "high"]]);
+	});
+
+	it("probes like a cross-site browser form: form body, attacker Origin, no redirects", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			status: () => 403,
+			headers: () => ({}),
+			headersArray: () => [],
+		});
+		await checkCSRF(makeRequest({ fetch: fetchMock }), "https://example.com/api", {
+			methods: ["POST"],
+		});
+		const opts = fetchMock.mock.calls.find((c) => c[1].method === "POST")?.[1];
+		expect(opts.maxRedirects).toBe(0);
+		expect(opts.headers["content-type"]).toBe("application/x-www-form-urlencoded");
+		expect(opts.headers.origin).toMatch(/^https:\/\//);
+		expect(opts.headers["sec-fetch-site"]).toBe("cross-site");
+	});
+
+	it("treats 401 and redirect-to-login as 'could not evaluate', not as protected", async () => {
+		for (const res of [
+			{ status: () => 401, headers: () => ({}) },
+			{ status: () => 302, headers: () => ({ location: "/users/sign_in" }) },
+		]) {
+			const request = makeRequest({ fetch: vi.fn().mockResolvedValue(res) });
+			const findings = await checkCSRF(request, "https://example.com/settings", {
+				methods: ["POST"],
+			});
+			const f = findings.find((f) => f.id === "csrf-check-unauthenticated");
+			expect(f?.severity).toBe("high");
+			expect(findings.find((f) => f.id === "csrf-unprotected-endpoint")).toBeUndefined();
+		}
+	});
+
+	it("treats 302-to-login as rejected when a control GET shows the context is logged in", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation((_url: string, opts: { method: string }) =>
+				Promise.resolve(
+					opts.method === "GET"
+						? { status: () => 200, headers: () => ({}) }
+						: { status: () => 302, headers: () => ({ location: "/login" }) },
+				),
+			);
+		const findings = await checkCSRF(
+			makeRequest({ fetch: fetchMock }),
+			"https://example.com/settings",
+			{ methods: ["POST"] },
+		);
+		expect(findings.filter((f) => f.severity === "critical" || f.severity === "high")).toEqual([]);
+	});
+
+	it("treats a same-origin Post/Redirect/Get as accepted", async () => {
+		const request = makeRequest({
+			fetch: vi.fn().mockResolvedValue({
+				status: () => 303,
+				headers: () => ({ location: "/settings?saved=1" }),
+			}),
+		});
+		const findings = await checkCSRF(request, "https://example.com/settings", {
+			methods: ["POST"],
+		});
+		expect(findings.find((f) => f.id === "csrf-unprotected-endpoint")?.severity).toBe("critical");
 	});
 
 	it("includes remediation on every finding", async () => {

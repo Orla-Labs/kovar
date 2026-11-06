@@ -86,14 +86,6 @@ export default defineConfig({
 					],
 				},
 				{
-					label: "Compliance",
-					items: [
-						{ label: "OWASP ASVS", slug: "compliance/owasp-asvs" },
-						{ label: "PCI-DSS", slug: "compliance/pci-dss" },
-						{ label: "Report Formats", slug: "compliance/reports" },
-					],
-				},
-				{
 					label: "CI/CD",
 					items: [
 						{ label: "GitHub Action", slug: "ci/github-action" },
@@ -116,7 +108,7 @@ export default defineConfig({
 					label: "Reference",
 					items: [
 						{ label: "SecurityFinding", slug: "reference/types" },
-						{ label: "Limitations", slug: "reference/limitations" },
+						{ label: "What Kovar Does Not Catch", slug: "reference/limitations" },
 					],
 				},
 			],

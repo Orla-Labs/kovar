@@ -1,7 +1,28 @@
 import type { APIRequestContext } from "@playwright/test";
-import { type Mock, describe, expect, it, vi } from "vitest";
+import { type Mock, beforeEach, describe, expect, it, vi } from "vitest";
+
+// checkAuth never sends probes through the caller's request context (R1-A3). It opens an
+// isolated context via `request.newContext()`, so the mocks below stand in for that context.
+const pw = vi.hoisted(() => {
+	const state = { isolated: null as unknown, newContext: null as unknown as Mock };
+	state.newContext = vi.fn(async () => state.isolated);
+	return state;
+});
+
+vi.mock("@playwright/test", () => {
+	return {
+		request: { newContext: (...args: unknown[]) => pw.newContext(...args) },
+		test: {
+			info: () => {
+				throw new Error("not inside a test");
+			},
+		},
+	};
+});
+
 import { checkAuth } from "../../../src/checks/auth.js";
 
+/** Returns the caller's context; the isolated context the check really uses gets the same fetch mock. */
 function makeRequest(overrides: Partial<Record<string, Mock>> = {}): APIRequestContext {
 	const defaults = {
 		fetch: vi.fn().mockResolvedValue({
@@ -10,8 +31,54 @@ function makeRequest(overrides: Partial<Record<string, Mock>> = {}): APIRequestC
 			text: () => Promise.resolve("Unauthorized"),
 		}),
 	};
-	return { ...defaults, ...overrides } as unknown as APIRequestContext;
+	pw.isolated = { ...defaults, ...overrides, dispose: vi.fn().mockResolvedValue(undefined) };
+	return { fetch: vi.fn() } as unknown as APIRequestContext;
 }
+
+beforeEach(() => {
+	pw.newContext.mockClear();
+	pw.newContext.mockImplementation(async () => pw.isolated);
+});
+
+describe("checkAuth isolation (R1-A3)", () => {
+	it("never sends probes through the caller's (possibly logged-in) request context", async () => {
+		const caller = makeRequest();
+		await checkAuth(caller, "https://example.com/api/admin", { methods: ["GET"] });
+		expect((caller as unknown as { fetch: Mock }).fetch).not.toHaveBeenCalled();
+		expect((pw.isolated as { fetch: Mock }).fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it("creates the isolated context without storageState, extra headers or credentials", async () => {
+		makeRequest();
+		await checkAuth({} as APIRequestContext, "/api/admin", {
+			methods: ["GET"],
+			baseURL: "https://example.com",
+		});
+		expect(pw.newContext).toHaveBeenCalledTimes(1);
+		const opts = pw.newContext.mock.calls[0]?.[0] as Record<string, unknown>;
+		expect(opts.baseURL).toBe("https://example.com");
+		// Keys must be PRESENT: Playwright's runner fills absent keys from the project's `use`.
+		expect(opts).toHaveProperty("storageState", { cookies: [], origins: [] });
+		expect(opts).toHaveProperty("extraHTTPHeaders", {});
+		expect("httpCredentials" in opts).toBe(true);
+		expect(opts.httpCredentials).toBeUndefined();
+	});
+
+	it("disposes the isolated context", async () => {
+		makeRequest();
+		await checkAuth({} as APIRequestContext, "https://example.com/a", { methods: ["GET"] });
+		expect((pw.isolated as { dispose: Mock }).dispose).toHaveBeenCalledTimes(1);
+	});
+
+	it("reports could-not-run when the isolated context cannot be created", async () => {
+		makeRequest();
+		pw.newContext.mockRejectedValueOnce(new Error("boom"));
+		const findings = await checkAuth({} as APIRequestContext, "https://example.com/a");
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.id).toBe("auth-check-error");
+		expect(findings[0]?.severity).toBe("high");
+	});
+});
 
 describe("checkAuth", () => {
 	it("returns no findings when endpoint returns 401", async () => {
@@ -182,12 +249,26 @@ describe("checkAuth", () => {
 		);
 	});
 
-	it("handles network errors gracefully", async () => {
+	it("reports network errors as a failing finding instead of passing silently", async () => {
 		const request = makeRequest({
 			fetch: vi.fn().mockRejectedValue(new Error("Network error")),
 		});
-		const findings = await checkAuth(request, "https://example.com/api/admin");
-		expect(findings).toHaveLength(0);
+		const findings = await checkAuth(request, "https://example.com/api/admin", {
+			methods: ["GET"],
+		});
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.id).toBe("auth-check-error");
+		expect(findings[0]?.severity).toBe("high");
+	});
+
+	it("does not follow redirects, so a 302 to a login page is not read as a 200", async () => {
+		const fetch = vi.fn().mockResolvedValue({ status: () => 302, text: async () => "" });
+		const request = makeRequest({ fetch });
+		await checkAuth(request, "https://example.com/account", { methods: ["GET"] });
+		expect(fetch).toHaveBeenCalledWith(
+			"https://example.com/account",
+			expect.objectContaining({ maxRedirects: 0 }),
+		);
 	});
 
 	it("detects various sensitive patterns in error responses", async () => {

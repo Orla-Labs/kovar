@@ -25,7 +25,7 @@ kovar ingest <file> --format <fmt> [options]
 | `kovar-jsonl` | Default kovar JSONL format (run/event/message lines). |
 | `claude-code` | Claude Code session JSONL files. |
 
-List them via `getAdapter` / `listAdapters` from `@orlalabs/kovar`'s programmatic API, or just try one and read the error message.
+List them via `getAdapter` / `listAdapters` from `@orlalabs/kovar/mcp`'s programmatic API, or just try one and read the error message.
 
 ## `kovar-jsonl`
 
@@ -36,7 +36,8 @@ The native format. One JSON object per line. Empty lines and lines starting with
 ```text
 { "type": "run",   "run_id"?: string, "agent_id"?: string, "started_at"?: int,
   "ended_at"?: int|null, "status"?: "running"|"completed"|"failed", "metadata"?: object }
-  (zero or one allowed; if absent, defaults from ingest context are used)
+  (zero or one allowed; run_id and agent_id on this line are ignored (0.6.0 and 0.7.0) --
+   the run id always comes from --run-id or the filename, the agent id from --agent-id or "ingest")
 
 { "type": "event", "tool_name": string, "args"?: object, "result"?: any,
   "cost_usd"?: number|null, "tokens_in"?: int, "tokens_out"?: int, "timestamp": int }
@@ -90,14 +91,15 @@ The Claude Code session format is undocumented. This adapter targets the format 
 
 ## Defaults
 
-- If a `kovar-jsonl` file has no `run` line, kovar fills in `agent_id` from `--agent-id` (or `ingest`), and `run_id` from `--run-id` (or the filename minus extension).
+- kovar takes `agent_id` from `--agent-id` (or `ingest`) and `run_id` from `--run-id` (or the filename minus extension). This applies even when the file has a `run` line with its own `run_id`/`agent_id`.
+- Ingesting the same file twice fails with a raw `UNIQUE constraint failed: runs.id`; pass a different `--run-id`.
 - `started_at` and `ended_at` default to the first/last event or message timestamp; if there are none, they default to `Date.now()`.
 - The run is always created in one transaction with its events; messages are appended after.
 
 ## Programmatic ingest
 
 ```typescript
-import { ingestFile } from "@orlalabs/kovar";
+import { ingestFile } from "@orlalabs/kovar/mcp";
 
 const result = await ingestFile({
   filePath: "./session.jsonl",

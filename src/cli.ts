@@ -1,25 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { RecordingSession } from "./recorder/index.js";
-
-function loadEnvFile(): void {
-	const envPath = resolve(process.cwd(), ".env");
-	if (!existsSync(envPath)) return;
-	const content = readFileSync(envPath, "utf-8");
-	for (const line of content.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed || trimmed.startsWith("#")) continue;
-		const eqIndex = trimmed.indexOf("=");
-		if (eqIndex === -1) continue;
-		const key = trimmed.slice(0, eqIndex).trim();
-		const value = trimmed
-			.slice(eqIndex + 1)
-			.trim()
-			.replace(/^["']|["']$/g, "");
-		if (!process.env[key]) process.env[key] = value;
-	}
-}
+import { warnDeprecated } from "./utils/deprecation.js";
+import { loadEnvFile } from "./utils/env-file.js";
 
 function parseCliArgs() {
 	const { values, positionals } = parseArgs({
@@ -31,6 +13,7 @@ function parseCliArgs() {
 			provider: { type: "string" },
 			model: { type: "string" },
 			heal: { type: "boolean", default: false },
+			yes: { type: "boolean", short: "y", default: false },
 			"heal-attempts": { type: "string", default: "3" },
 			"db-path": { type: "string" },
 			"agent-id": { type: "string" },
@@ -44,6 +27,31 @@ function parseCliArgs() {
 
 type CliValues = Record<string, string | boolean | undefined>;
 
+const MCP_PEERS = ["@modelcontextprotocol/sdk", "better-sqlite3"];
+
+/**
+ * The MCP server's dependencies are optional peers so the core assertion library
+ * installs without a native SQLite build. Turn a missing peer into an actionable error.
+ */
+async function loadMcp(): Promise<typeof import("./mcp/index.js")> {
+	try {
+		return await import("./mcp/index.js");
+	} catch (error) {
+		const code = (error as NodeJS.ErrnoException)?.code;
+		const message = error instanceof Error ? error.message : String(error);
+		if (
+			(code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") &&
+			MCP_PEERS.some((p) => message.includes(p))
+		) {
+			console.error(
+				`\n  ✗ The Kovar MCP server needs optional dependencies that are not installed.\n    Run: npm install -D ${MCP_PEERS.join(" ")}\n`,
+			);
+			process.exit(1);
+		}
+		throw error;
+	}
+}
+
 async function runMcpProxy(positionals: string[], values: CliValues): Promise<void> {
 	const childCommand = positionals[2];
 	if (!childCommand) {
@@ -53,7 +61,7 @@ async function runMcpProxy(positionals: string[], values: CliValues): Promise<vo
 		process.exit(1);
 	}
 	const childArgs = positionals.slice(3);
-	const { startProxyServer } = await import("./mcp/index.js");
+	const { startProxyServer } = await loadMcp();
 	const dbPath = values["db-path"] as string | undefined;
 	const agentId = values["agent-id"] as string | undefined;
 	const runId = values["run-id"] as string | undefined;
@@ -73,7 +81,7 @@ async function runMcpProxy(positionals: string[], values: CliValues): Promise<vo
 }
 
 async function runMcpServer(values: CliValues): Promise<void> {
-	const { startMcpServer } = await import("./mcp/index.js");
+	const { startMcpServer } = await loadMcp();
 	const dbPath = values["db-path"] as string | undefined;
 	try {
 		await startMcpServer(dbPath ? { dbPath } : {});
@@ -95,7 +103,7 @@ async function runIngest(positionals: string[], values: CliValues): Promise<void
 		console.error("Error: --format is required.\n  Usage: kovar ingest <file> --format <fmt>\n");
 		process.exit(1);
 	}
-	const { ingestFile } = await import("./mcp/index.js");
+	const { ingestFile } = await loadMcp();
 	const dbPath = values["db-path"] as string | undefined;
 	const agentId = values["agent-id"] as string | undefined;
 	const runId = values["run-id"] as string | undefined;
@@ -122,6 +130,9 @@ async function executeCommand(
 	positionals: string[],
 	values: CliValues,
 ): Promise<void> {
+	if (command === "mcp" || command === "ingest") warnDeprecated("KOVAR_DEP_MCP");
+	if (command === "record") warnDeprecated("KOVAR_DEP_RECORDER");
+
 	if (command === "mcp") {
 		if (positionals[1] === "proxy") {
 			await runMcpProxy(positionals, values);
@@ -142,15 +153,38 @@ async function executeCommand(
 		process.exit(1);
 	}
 
+	// Only `record` reads ./.env (for LLM keys and BASE_URL/TEST_* used by --heal).
+	loadEnvFile();
+
 	const url = positionals[1];
 	if (!url) {
 		console.error("Error: URL is required.\n  Usage: kovar record <url>\n");
 		process.exit(1);
 	}
 
+	// --heal executes AI-generated code. Refuse up front, before the user spends time
+	// recording, when there is no terminal to confirm on and --yes was not given.
+	if (values.heal && !values.yes && !process.stdin.isTTY) {
+		console.error(
+			"Error: --heal runs AI-generated test code on this machine and needs confirmation.\n  stdin is not a terminal, so pass --heal --yes to run it without a prompt.\n",
+		);
+		process.exit(1);
+	}
+
 	if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
 		console.error(
 			"Error: No LLM API key found.\n  Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable.\n",
+		);
+		process.exit(1);
+	}
+
+	// OpenAI has no default model; fail before recording rather than after.
+	const usesOpenAI =
+		values.provider === "openai" ||
+		(!values.provider && !process.env.ANTHROPIC_API_KEY && !!process.env.OPENAI_API_KEY);
+	if (usesOpenAI && !values.model) {
+		console.error(
+			"Error: the OpenAI provider has no default model.\n  Pass --model with a current OpenAI model ID.\n",
 		);
 		process.exit(1);
 	}
@@ -164,6 +198,7 @@ async function executeCommand(
 		model: values.model as string | undefined,
 		heal: values.heal as boolean | undefined,
 		healAttempts: Number.parseInt((values["heal-attempts"] as string) ?? "3", 10),
+		healYes: values.yes as boolean | undefined,
 	});
 
 	try {
@@ -176,7 +211,6 @@ async function executeCommand(
 }
 
 async function main() {
-	loadEnvFile();
 	const { values, positionals } = parseCliArgs();
 
 	if (values.help || positionals.length === 0) {
@@ -203,8 +237,10 @@ function printUsage() {
     -n, --name          Test file name (default: auto-generated from URL)
     -s, --source        Source directory for codebase-aware locator generation
     --provider          LLM provider: anthropic or openai (default: auto-detect from env)
-    --model             LLM model (default: claude-sonnet-4-20250514 or gpt-4o)
-    --heal              Run generated test and auto-fix failures (up to 3 attempts)
+    --model             LLM model (Anthropic default: claude-sonnet-5-5; required for OpenAI)
+    --heal              Run generated test and auto-fix failures (up to 3 attempts).
+                        Executes AI-generated code: asks before each run, or pass --yes
+    -y, --yes           With --heal: run without asking (required when stdin is not a TTY)
     --heal-attempts N   Max self-healing attempts (default: 3)
     --db-path           Override SQLite path for the MCP server (default: ~/.kovar/runs.db)
     --agent-id          Agent id for proxy/ingest run records (default: proxy or ingest)
@@ -214,7 +250,7 @@ function printUsage() {
 
   Environment:
     ANTHROPIC_API_KEY   API key for Claude
-    OPENAI_API_KEY      API key for GPT-4o
+    OPENAI_API_KEY      API key for OpenAI (requires --model)
     KOVAR_DB_PATH       Override SQLite path for the MCP server
 
   Examples:

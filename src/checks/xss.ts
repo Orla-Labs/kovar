@@ -28,6 +28,8 @@ interface FormInfo {
 	action: string;
 	method: string;
 	inputs: InputInfo[];
+	/** Hidden fields (CSRF tokens, ids) submitted with their current values. */
+	hidden?: Record<string, string>;
 }
 
 interface InputInfo {
@@ -41,26 +43,41 @@ export interface XSSScanResult {
 	payloadsTested: number;
 }
 
-const DANGEROUS_RESPONSE_PATTERNS = [
-	/<script[\s>]/i,
-	/\bon\w+\s*=/i,
-	/javascript\s*:/i,
-	/<svg[\s/]/i,
-	/<img\s[^>]*onerror/i,
-	/<iframe[\s/]/i,
-	/<details\s[^>]*ontoggle/i,
-	/<style[\s>]/i,
-	/\$\{[^}]*\}/,
-];
+function lastIndexOfCI(haystack: string, needle: string, before: number): number {
+	return haystack.toLowerCase().lastIndexOf(needle, before);
+}
+
+/**
+ * Whether the reflection at `index` is in a context where a payload with no
+ * '<' can still execute: inside a tag (attribute breakout, javascript: URL)
+ * or inside a <script> element (string / template-literal breakout). A
+ * reflection in a plain text node is inert unless it opens new markup.
+ */
+function isExecutableContext(body: string, index: number): boolean {
+	const scriptOpen = lastIndexOfCI(body, "<script", index);
+	if (scriptOpen !== -1 && lastIndexOfCI(body, "</script", index) < scriptOpen) return true;
+
+	const before = body.slice(0, index);
+	const tagOpen = before.search(/<[a-zA-Z][^<>]*$/);
+	return tagOpen !== -1;
+}
 
 export function isReflectedUnescaped(body: string, payload: PayloadDefinition): boolean {
-	const escaped = payload.payload.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-	const hasUnescaped = body.includes(payload.payload);
-	const hasEscapedOnly = body.includes(escaped) && !hasUnescaped;
+	const needle = payload.payload;
+	if (!needle || !body.includes(needle)) return false;
 
-	if (!hasUnescaped || hasEscapedOnly) return false;
+	// A verbatim reflection of a payload that opens markup is an HTML injection.
+	if (needle.includes("<")) return true;
 
-	return DANGEROUS_RESPONSE_PATTERNS.some((pattern) => pattern.test(body));
+	for (let i = body.indexOf(needle); i !== -1; i = body.indexOf(needle, i + 1)) {
+		if (isExecutableContext(body, i)) return true;
+	}
+	return false;
+}
+
+function isHtmlResponse(contentType: string | undefined): boolean {
+	if (!contentType) return true;
+	return /html|xml/i.test(contentType);
 }
 
 function buildXSSFinding(
@@ -83,6 +100,14 @@ function buildXSSFinding(
 // Browser-side helper: collects input info from a DOM element.
 // Defined as a string to be injected into page.evaluate() contexts.
 const COLLECT_INPUTS_FN = `
+function collectHidden(root) {
+	var hidden = {};
+	var elements = root.querySelectorAll('input[type="hidden"]');
+	for (var i = 0; i < elements.length; i++) {
+		if (elements[i].name) hidden[elements[i].name] = elements[i].value;
+	}
+	return hidden;
+}
 function collectInputs(root) {
 	var inputs = [];
 	var elements = root.querySelectorAll("input, textarea");
@@ -102,6 +127,7 @@ function collectInputs(root) {
 
 export class XSSScanner {
 	private detectedPayloads: Set<string> = new Set();
+	private failedRequests = 0;
 
 	constructor(
 		private page: Page,
@@ -121,8 +147,9 @@ export class XSSScanner {
 					{
 						id: "xss-no-forms",
 						category: "xss",
-						severity: "info",
-						message: "No forms found on the page to test for XSS",
+						severity: "high",
+						message:
+							"XSS check could not run: no form inputs found on the page, so nothing was tested",
 						remediation:
 							"Ensure the page has loaded and contains forms, or use the selector option to target a specific container",
 					},
@@ -134,6 +161,7 @@ export class XSSScanner {
 		const delay = options?.delayBetweenPayloads ?? 0;
 		const concurrency = options?.concurrency ?? 1;
 		const findings: SecurityFinding[] = [];
+		this.failedRequests = 0;
 		for (const form of forms) {
 			const formFindings =
 				options?.apiFirst !== false
@@ -142,7 +170,22 @@ export class XSSScanner {
 			findings.push(...formFindings);
 		}
 
-		return { findings, payloadsTested: payloads.length * forms.length };
+		const attempted = payloads.length * forms.reduce((n, f) => n + f.inputs.length, 0);
+		if (attempted > 0 && this.failedRequests >= attempted) {
+			findings.push({
+				id: "xss-check-error",
+				category: "xss",
+				severity: "high",
+				message: `XSS check could not run: all ${attempted} payload submissions failed (see [kovar] warnings)`,
+				remediation:
+					"Make sure the form target is reachable from the test. Nothing was tested, so this is not a pass.",
+			});
+		}
+
+		return {
+			findings,
+			payloadsTested: payloads.length * forms.length - Math.min(this.failedRequests, attempted),
+		};
 	}
 
 	private selectPayloads(depth: string, skip?: string[]): PayloadDefinition[] {
@@ -167,7 +210,8 @@ export class XSSScanner {
 						results.push({
 							action: form.action || window.location.href,
 							method: (form.method || "GET").toUpperCase(),
-							inputs: inputs
+							inputs: inputs,
+							hidden: collectHidden(form)
 						});
 					}
 				}
@@ -194,7 +238,8 @@ export class XSSScanner {
 					return {
 						action: formEl.action || window.location.href,
 						method: (formEl.method || "GET").toUpperCase(),
-						inputs: inputs
+						inputs: inputs,
+						hidden: collectHidden(formEl)
 					};
 				}
 				return { action: window.location.href, method: "GET", inputs: inputs };
@@ -249,7 +294,7 @@ export class XSSScanner {
 		payload: PayloadDefinition,
 		timeout?: number,
 	): Promise<SecurityFinding | null> {
-		const data: Record<string, string> = {};
+		const data: Record<string, string> = { ...(form.hidden ?? {}) };
 		for (const other of form.inputs) {
 			data[other.name] = other.name === input.name ? payload.payload : "test";
 		}
@@ -266,7 +311,9 @@ export class XSSScanner {
 							timeout: timeout ?? DEFAULT_API_TIMEOUT,
 						});
 
-			if (response.status() >= 400) return null;
+			// Error and validation pages (400/422/500) that echo input are a classic
+			// XSS vector, so the body is inspected regardless of status.
+			if (!isHtmlResponse(response.headers()["content-type"])) return null;
 
 			const body = await response.text();
 			if (isReflectedUnescaped(body, payload)) {
@@ -278,6 +325,7 @@ export class XSSScanner {
 				);
 			}
 		} catch (error: unknown) {
+			this.failedRequests++;
 			console.warn(
 				`[kovar] XSS payload request failed for ${form.action}: ${error instanceof Error ? error.message : String(error)}`,
 			);
@@ -330,11 +378,21 @@ export class XSSScanner {
 		const expectedCanary = `${CANARY_PREFIX}-${payload.id}`;
 		const waitTime = timeout ?? DEFAULT_DOM_TIMEOUT;
 
+		const savedUrl = this.page.url();
 		try {
-			const savedUrl = this.page.url();
-			await this.page.fill(input.selector, payload.payload);
-			const submitButton = await this.page.$('button[type="submit"], input[type="submit"]');
-			if (submitButton) await submitButton.click();
+			await this.page.fill(input.selector, payload.payload, { timeout: waitTime });
+			// Submit the input's own form the way a user would (fires submit
+			// handlers, works with <button> lacking type=submit); fall back to Enter.
+			const submitted = await this.page
+				.locator(input.selector)
+				.first()
+				.evaluate((el) => {
+					const form = (el as HTMLInputElement).form;
+					if (!form) return false;
+					form.requestSubmit();
+					return true;
+				});
+			if (!submitted) await this.page.press(input.selector, "Enter", { timeout: waitTime });
 
 			await Promise.race([
 				this.page.waitForEvent("dialog", { timeout: waitTime }).catch(() => {}),
@@ -349,16 +407,15 @@ export class XSSScanner {
 					`Payload "${payload.name}" triggered alert() in the browser`,
 				);
 			}
-
-			if (this.page.url() !== savedUrl) {
-				await this.page.goto(savedUrl).catch(() => {});
-			} else {
-				await this.page.goBack().catch(() => {});
-			}
 		} catch (error: unknown) {
+			this.failedRequests++;
 			console.warn(
 				`[kovar] XSS DOM payload failed for ${input.name}: ${error instanceof Error ? error.message : String(error)}`,
 			);
+		} finally {
+			// Always reload the original page: goBack() after an in-page (SPA)
+			// submission left the page under test and every later payload failed.
+			await this.page.goto(savedUrl).catch(() => {});
 		}
 
 		return null;

@@ -220,7 +220,7 @@ describe("OpenAIProvider — error handling", () => {
 			}),
 		);
 
-		const provider = new OpenAIProvider("test-key");
+		const provider = new OpenAIProvider("test-key", "test-model");
 
 		await expect(runWithTimerAdvancement(() => provider.generate(MOCK_PAYLOAD))).rejects.toThrow(
 			/missing choices or message/,
@@ -232,7 +232,7 @@ describe("OpenAIProvider — error handling", () => {
 		// 400 is non-transient
 		mockFetch.mockResolvedValue(makeMockResponse(400, "Bad Request"));
 
-		const provider = new OpenAIProvider("test-key");
+		const provider = new OpenAIProvider("test-key", "test-model");
 
 		await expect(runWithTimerAdvancement(() => provider.generate(MOCK_PAYLOAD))).rejects.toThrow(
 			LLMRequestError,
@@ -244,7 +244,7 @@ describe("OpenAIProvider — error handling", () => {
 		const abortError = new DOMException("Aborted", "AbortError");
 		mockFetch.mockRejectedValue(abortError);
 
-		const provider = new OpenAIProvider("test-key");
+		const provider = new OpenAIProvider("test-key", "test-model");
 
 		await expect(runWithTimerAdvancement(() => provider.generate(MOCK_PAYLOAD))).rejects.toThrow();
 	});
@@ -255,7 +255,7 @@ describe("OpenAIProvider — error handling", () => {
 		(networkError as Error & { cause?: { code: string } }).cause = { code: "ETIMEDOUT" };
 		mockFetch.mockRejectedValue(networkError);
 
-		const provider = new OpenAIProvider("test-key");
+		const provider = new OpenAIProvider("test-key", "test-model");
 
 		await expect(runWithTimerAdvancement(() => provider.generate(MOCK_PAYLOAD))).rejects.toThrow(
 			LLMRequestError,
@@ -276,7 +276,7 @@ describe("OpenAIProvider — error handling", () => {
 				}),
 			);
 
-		const provider = new OpenAIProvider("test-key");
+		const provider = new OpenAIProvider("test-key", "test-model");
 		const result = await runWithTimerAdvancement(() => provider.generate(MOCK_PAYLOAD));
 
 		expect(result.testCode).toBe("test code from openai");
@@ -291,7 +291,7 @@ describe("OpenAIProvider — error handling", () => {
 			makeMockResponse(503, { error: { type: "server_error", message: "Overloaded" } }),
 		);
 
-		const provider = new OpenAIProvider("test-key");
+		const provider = new OpenAIProvider("test-key", "test-model");
 
 		try {
 			await runWithTimerAdvancement(() => provider.generate(MOCK_PAYLOAD));
@@ -302,5 +302,17 @@ describe("OpenAIProvider — error handling", () => {
 			expect(llmErr.message).toContain("503");
 			expect(llmErr.attempts).toBeGreaterThanOrEqual(1);
 		}
+	});
+});
+
+describe("default model IDs (0.7.0)", () => {
+	it("Anthropic default is a current model ID, not the retired claude-sonnet-4-20250514", async () => {
+		const { DEFAULT_ANTHROPIC_MODEL } = await import("../../../src/recorder/llm/anthropic.js");
+		expect(DEFAULT_ANTHROPIC_MODEL).toBe("claude-sonnet-5-5");
+	});
+
+	it("OpenAI has no default model; constructing without one throws", async () => {
+		const { OpenAIProvider } = await import("../../../src/recorder/llm/openai.js");
+		expect(() => new OpenAIProvider("test-key", "")).toThrow(/requires a model/);
 	});
 });

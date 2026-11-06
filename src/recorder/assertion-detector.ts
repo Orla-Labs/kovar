@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { isRecorderAssertionCode } from "./assertion-grammar.js";
 import { getAssertionDetectorScript } from "./browser-scripts.js";
 import type { AssertionSuggestion, RecordedRequest } from "./types.js";
 
@@ -19,6 +20,16 @@ export class AssertionDetector {
 		await page.exposeFunction("__kovar_suggestAssertion", (json: string) => {
 			try {
 				const suggestion = JSON.parse(json) as AssertionSuggestion;
+				// Page JS can call this binding directly: only accept the exact code
+				// shapes the recorder's own detector produces.
+				if (
+					typeof suggestion?.id !== "string" ||
+					typeof suggestion.description !== "string" ||
+					!isRecorderAssertionCode(suggestion.playwrightCode)
+				) {
+					return;
+				}
+				suggestion.accepted = false;
 				suggestion.afterActionIndex = this.currentActionCount;
 				this.suggestions.push(suggestion);
 				this.onSuggestion?.(suggestion);

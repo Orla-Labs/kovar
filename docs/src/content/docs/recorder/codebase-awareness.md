@@ -6,10 +6,28 @@ description: Map UI elements to source components for higher-confidence locators
 With the `--source` flag, Kovar maps UI elements back to their source components to generate higher-confidence selectors. Instead of guessing from the DOM alone, it reads your JSX to find `data-testid`, `aria-label`, and event handlers from the actual component definition.
 
 ```bash
-kovar record https://your-app.com --source ./src
+kovar record https://your-app.com --source .
 ```
 
+Point `--source` at the **project root** (the directory your dev server runs from), not at `./src`: the injected file paths are relative to the dev server's working directory (e.g. `src/components/Button.tsx`), and `--source ./src` would look for `src/src/...` and silently fall back to DOM-only locators.
+
+:::note[Install the Babel peers]
+The Vite/Babel plugins and `--source` parsing need the `@babel/*` packages, which are optional peer dependencies (Babel 7 or 8) since 0.7.0. Without them you get `Cannot find package '@babel/generator'` (plugins) or a "Failed to parse source location" warning per action (recorder). Install them:
+
+```bash
+npm install -D @babel/parser @babel/traverse @babel/generator @babel/types
+```
+:::
+
+Only React JSX/TSX (`.jsx`/`.tsx`) is supported. Vue single-file components and Svelte are not transformed.
+
 ## Framework Setup
+
+The source plugins and `kovar record --source` parse your code with Babel, which is an optional peer dependency. Install it next to Kovar (Babel 7 or 8):
+
+```bash
+npm install -D @babel/parser @babel/traverse @babel/generator @babel/types
+```
 
 ### Vite
 
@@ -43,14 +61,14 @@ Then create a `.babelrc` in your project root:
 }
 ```
 
-> `withKovar` disables SWC in dev mode to allow the Babel plugin to inject source attributes. This adds ~2-5 seconds to dev startup. Production builds are unaffected.
+> Adding a `.babelrc` is what switches Next.js from SWC to Babel, and it does so for **all** builds, including production (the Kovar Babel plugin itself is a no-op in production, but the build still runs through Babel). Expect slower dev startup and builds; consider adding the `.babelrc` only in the environment where you record. `withKovar` only sets `experimental.forceSwcTransforms: false`.
 
 ## How It Works
 
-1. The build plugin injects `data-kovar-source` attributes into JSX elements at compile time (file path, component name, line number).
+1. The build plugin injects `data-kovar-file`, `data-kovar-line` and `data-kovar-col` attributes into JSX elements at compile time.
 2. During recording, the recorder reads these attributes from the live DOM.
 3. The AST parser extracts component metadata (testId, ariaLabel, event handlers) from source files.
-4. The `LocatorStrategy` scores each selector candidate by confidence (0.4-0.97) and picks the best one.
+4. The `LocatorStrategy` ranks selector candidates in a fixed priority order with a confidence value (0.4-0.97); the AI makes the final choice when generating code.
 5. Generated tests use standard Playwright locators -- no `data-kovar-*` attributes leak into test output.
 
 ## Confidence Levels
@@ -64,7 +82,7 @@ Then create a `.babelrc` in your project root:
 | Short visible text | 0.70 | `page.getByText("Submit")` |
 | CSS selector fallback | 0.40 | `page.locator(".btn-primary")` |
 
-The confidence jump from 0.40 (CSS) to 0.97 (source-verified testId) makes a significant difference in test stability. Use `--source` for React, Vue, and Svelte apps whenever possible.
+The confidence jump from 0.40 (CSS) to 0.97 (source-verified testId) makes a significant difference in test stability. Use `--source` for React apps whenever possible.
 
 ## Related
 

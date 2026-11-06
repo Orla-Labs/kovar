@@ -1,15 +1,15 @@
 name: "Kovar Security Check"
-description: "Run Kovar security checks and report findings"
+description: "Run Kovar header and cookie security checks against a URL; emit JSON + SARIF, a job summary and a PR comment"
 inputs:
   url:
     description: "URL to check"
     required: true
   checks:
-    description: "Comma-separated checks to run (headers,cookies,xss)"
+    description: "Comma-separated checks to run (headers,cookies)"
     required: false
     default: "headers,cookies"
   fail-on:
-    description: "Minimum severity to fail the check (critical,high,medium,low)"
+    description: "Minimum severity to fail the check (critical,high,medium,low,info; case-insensitive). Any other value fails the step."
     required: false
     default: "high"
   comment:
@@ -28,13 +28,90 @@ inputs:
     description: "Save current findings as new baseline (true/false)"
     required: false
     default: "false"
+  output-dir:
+    description: "Directory (relative to the workspace) for kovar-report.json and kovar.sarif"
+    required: false
+    default: "kovar-results"
+  framework-package-json:
+    description: "package.json used to pick framework-specific remediation (express, fastify, next, koa, hono)"
+    required: false
+    default: "package.json"
+  kovar-package:
+    description: "npm spec for Kovar (e.g. @orlalabs/kovar@0.7.0, or a path to a packed .tgz). Default: the version in this action's package.json, so pinning the action ref pins the checks."
+    required: false
+    default: ""
+  playwright-version:
+    description: "@playwright/test version used to drive the browser"
+    required: false
+    default: "latest"
 outputs:
   score:
     description: "Security score (0-100)"
+    value: ${{ steps.run.outputs.score }}
   findings-count:
     description: "Total number of findings"
+    value: ${{ steps.run.outputs.findings-count }}
+  blocking-count:
+    description: "Findings that failed the gate (new at/above fail-on, plus checks that could not run)"
+    value: ${{ steps.run.outputs.blocking-count }}
   passed:
     description: "Whether the check passed (true/false)"
+    value: ${{ steps.run.outputs.passed }}
+  json-path:
+    description: "Path to kovar-report.json (findings, gate result, baseline status, remediation suggestions)"
+    value: ${{ steps.run.outputs.json-path }}
+  sarif-path:
+    description: "Path to kovar.sarif (SARIF 2.1.0; results are anchored to the framework-package-json file so GitHub code scanning accepts the upload)"
+    value: ${{ steps.run.outputs.sarif-path }}
 runs:
-  using: "node20"
-  main: "../../../dist/ci/index.js"
+  # Composite (not a node20/node24 JavaScript action): the check needs Kovar,
+  # @playwright/test and a Chromium build, none of which exist on a bare runner.
+  using: "composite"
+  steps:
+    - name: Install Kovar and Playwright
+      shell: bash
+      env:
+        KOVAR_PACKAGE: ${{ inputs.kovar-package }}
+        PLAYWRIGHT_VERSION: ${{ inputs.playwright-version }}
+      run: |
+        set -euo pipefail
+        dir="$RUNNER_TEMP/kovar-action"
+        mkdir -p "$dir"
+        cd "$dir"
+        [ -f package.json ] || npm init -y > /dev/null
+        if [ -z "$KOVAR_PACKAGE" ]; then
+          # Pinning the action ref (e.g. @v0.7.0) must also pin the Kovar code it runs.
+          version="$(node -p "require('$GITHUB_ACTION_PATH/../../../package.json').version")"
+          if [ -n "$(npm view "@orlalabs/kovar@$version" version 2>/dev/null)" ]; then
+            KOVAR_PACKAGE="@orlalabs/kovar@$version"
+          else
+            echo "::warning::@orlalabs/kovar@$version is not published (unreleased action ref); using @orlalabs/kovar@latest"
+            KOVAR_PACKAGE="@orlalabs/kovar@latest"
+          fi
+        fi
+        echo "Installing $KOVAR_PACKAGE"
+        # Resolve relative tarball paths against the caller's workspace.
+        case "$KOVAR_PACKAGE" in
+          ./*|../*) KOVAR_PACKAGE="$GITHUB_WORKSPACE/$KOVAR_PACKAGE" ;;
+        esac
+        npm install --no-audit --no-fund "$KOVAR_PACKAGE" "@playwright/test@$PLAYWRIGHT_VERSION"
+        npx playwright install --with-deps chromium
+        if [ ! -f node_modules/@orlalabs/kovar/dist/ci/index.js ]; then
+          echo "::error::Installed Kovar package does not ship dist/ci/index.js (requires @orlalabs/kovar >= 0.7.0)"
+          exit 1
+        fi
+    - name: Run Kovar security check
+      id: run
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_CHECKS: ${{ inputs.checks }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_BASELINE_PATH: ${{ inputs.baseline-path }}
+        INPUT_UPDATE_BASELINE: ${{ inputs.update-baseline }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_FRAMEWORK_PACKAGE_JSON: ${{ inputs.framework-package-json }}
+      run: node "$RUNNER_TEMP/kovar-action/node_modules/@orlalabs/kovar/dist/ci/index.js"

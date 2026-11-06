@@ -9,11 +9,29 @@ description: How to install and set up Kovar in your Playwright project
 npm install -D @orlalabs/kovar
 ```
 
-Kovar requires `@playwright/test` >= 1.40.0 as a peer dependency. If you don't have Playwright installed yet:
+Kovar requires Node.js 20.19 or later and `@playwright/test` >= 1.40.0 as a peer dependency. It is tested against Playwright 1.40 through 1.65 on Node 22 and 24.
+
+:::note
+Playwright 1.52.0 hangs at startup on Node 24 in projects with `"type": "module"`. This is a Playwright bug and is fixed in 1.53.0. Use any other version.
+:::
+
+If you don't have Playwright installed yet:
 
 ```bash
 npm install -D @playwright/test
 npx playwright install
+```
+
+Kovar's examples use relative paths like `page.goto("/login")`, so your Playwright config needs a `baseURL` (and usually a `webServer` that starts your app). Without one, the first test fails with `Cannot navigate to invalid URL`:
+
+```typescript
+// playwright.config.ts
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  use: { baseURL: "http://localhost:3000" },
+  webServer: { command: "npm run dev", url: "http://localhost:3000", reuseExistingServer: true },
+});
 ```
 
 ## Setup
@@ -36,13 +54,13 @@ After swapping the import, you can use:
 
 - **Security matchers** on `expect()` -- `toHaveSecureHeaders()`, `toHaveSecureCookies()`, `toBeResilientToXSS()`, `toBeCSRFProtected()`, `toHaveSecureCORS()`, `toRequireAuthentication()`, `toBeAccessible()`.
 - **The `security` fixture** -- programmatic access to all checks with `assert()` and `check()` modes.
-- **Full audit** -- `security.audit()` runs all checks at once and returns a structured report.
+- **Full audit** -- `security.audit()` runs the default checks (headers and cookies; others are opt-in) and returns a structured report.
 
 All standard Playwright APIs (`page`, `context`, `request`, `expect`) continue to work exactly as before.
 
 ## Optional: Reporter
 
-Add the Kovar reporter to your Playwright config for a security summary after each test run:
+Add the Kovar reporter to your Playwright config for a security summary after each test run. The reporter only counts findings from the `security` fixture (`security.*.check()/assert()` and `security.audit()`); `expect(...)` matchers do not feed it, so a suite that uses only matchers prints no score card.
 
 ```typescript
 // playwright.config.ts

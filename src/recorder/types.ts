@@ -186,4 +186,9 @@ export interface RecorderConfig {
 	heal?: boolean | undefined;
 	/** Max self-healing attempts. Defaults to 3. */
 	healAttempts?: number | undefined;
+	/**
+	 * Run each self-healing attempt without asking (`--heal --yes`). Without it, every
+	 * attempt asks for confirmation on a TTY and is refused when stdin is not a TTY.
+	 */
+	healYes?: boolean | undefined;
 }

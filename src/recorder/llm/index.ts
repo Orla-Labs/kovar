@@ -34,6 +34,11 @@ export function createLLMProvider(provider?: string, model?: string): LLMProvide
 	if (provider === "openai" || (!provider && openaiKey)) {
 		if (!openaiKey) throw new Error("OPENAI_API_KEY environment variable is required");
 		warnIfInvalidKeyFormat(openaiKey, "openai");
+		if (!model) {
+			throw new Error(
+				"The OpenAI provider has no default model. Pass --model with a current OpenAI model ID.",
+			);
+		}
 		return new OpenAIProvider(openaiKey, model);
 	}
 

@@ -1,4 +1,5 @@
 import type { HeaderCheckOptions, SecurityFinding } from "../types/index.js";
+import { rejectRemovedOptions } from "../utils/removed-options.js";
 
 interface HeaderRule {
 	id: string;
@@ -10,25 +11,85 @@ interface HeaderRule {
 }
 
 function parseMaxAge(value: string): number {
-	const match = value.match(/max-age=(\d+)/i);
+	const match = value.match(/max-age\s*=\s*"?(\d+)"?/i);
 	return match?.[1] ? Number.parseInt(match[1], 10) : 0;
 }
 
 const DEFAULT_MIN_HSTS_MAX_AGE = 31536000;
 
-function hasUnsafeInlineWithoutNonce(csp: string): boolean {
-	const scriptSrc = csp.match(/script-src[^;]*/i);
-	if (!scriptSrc?.[0]) return false;
-	const directive = scriptSrc[0];
-	return directive.includes("'unsafe-inline'") && !directive.includes("'nonce-");
+/**
+ * Playwright joins repeated response headers: allHeaders()/APIResponse.headers()
+ * use ", " and Response.headers() uses "\n". For single-token headers, identical
+ * repeats (framework + proxy both setting the header) are equivalent to one value.
+ */
+function collapseRepeatedToken(value: string | undefined): string | undefined {
+	if (value === undefined) return undefined;
+	const parts = [...new Set(value.split(/\s*[,\n]\s*/).map((p) => p.trim().toLowerCase()))];
+	return parts.length === 1 ? (parts[0] ?? value) : value;
 }
 
-const DANGEROUS_CSP_PATTERNS = [
-	/default-src[^;]*\*/,
-	/script-src[^;]*\*/,
-	/script-src[^;]*'unsafe-eval'/,
-	/script-src[^;]*'unsafe-hashes'/,
-];
+type CSPDirectives = Map<string, string[]>;
+
+function parseCSPPolicies(header: string): CSPDirectives[] {
+	return header
+		.split(/[,\n]/)
+		.map((policy) => {
+			const directives: CSPDirectives = new Map();
+			for (const raw of policy.split(";")) {
+				const [name, ...sources] = raw.trim().split(/\s+/);
+				if (!name) continue;
+				const key = name.toLowerCase();
+				if (!directives.has(key)) directives.set(key, sources);
+			}
+			return directives;
+		})
+		.filter((d) => d.size > 0);
+}
+
+const SCHEME_ONLY_SOURCE = /^(?:https?|data|blob|filesystem):$/i;
+
+/** Returns why a single policy fails to restrict script execution, or null if it does. */
+function weakScriptPolicy(policy: CSPDirectives): string | null {
+	const defaultSrc = policy.get("default-src");
+	if (defaultSrc?.some((s) => s === "*")) return "default-src allows any origin (*)";
+
+	const scriptSrc = policy.get("script-src") ?? defaultSrc;
+	if (!scriptSrc) return "no script-src or default-src, so scripts are unrestricted";
+
+	const lower = scriptSrc.map((s) => s.toLowerCase());
+	const hasNonceOrHash = lower.some((s) => /^'(?:nonce|sha256|sha384|sha512)-/.test(s));
+	const strictDynamic = hasNonceOrHash && lower.includes("'strict-dynamic'");
+
+	if (lower.includes("'unsafe-eval'")) return "script source allows 'unsafe-eval'";
+	if (lower.includes("'unsafe-hashes'")) return "script source allows 'unsafe-hashes'";
+	if (lower.includes("'unsafe-inline'") && !hasNonceOrHash) {
+		return "script source allows 'unsafe-inline' without a nonce or hash";
+	}
+	// With 'strict-dynamic' + nonce/hash, CSP3 browsers ignore host and scheme sources.
+	if (!strictDynamic) {
+		const wildcard = lower.find((s) => s.includes("*"));
+		if (wildcard) return `script source allows wildcard ${wildcard}`;
+		const scheme = lower.find((s) => SCHEME_ONLY_SOURCE.test(s));
+		if (scheme) return `script source allows any URL with scheme ${scheme}`;
+	}
+	return null;
+}
+
+/**
+ * Multiple policies are all enforced, so the page is protected if ANY policy
+ * restricts scripts. Returns a reason string when none does.
+ */
+function cspWeakness(header: string): string | null {
+	const policies = parseCSPPolicies(header);
+	if (policies.length === 0) return "policy is empty";
+	const reasons = policies.map(weakScriptPolicy);
+	return reasons.every((r) => r !== null) ? (reasons[0] as string) : null;
+}
+
+function hasFrameAncestors(csp: string | undefined): boolean {
+	if (!csp) return false;
+	return parseCSPPolicies(csp).some((p) => p.has("frame-ancestors"));
+}
 
 const HEADER_RULES: HeaderRule[] = [
 	{
@@ -56,10 +117,11 @@ const HEADER_RULES: HeaderRule[] = [
 		cweId: "CWE-693",
 		check: (value) => {
 			if (!value) return { pass: false, message: "Content-Security-Policy header is missing" };
-			if (DANGEROUS_CSP_PATTERNS.some((p) => p.test(value)) || hasUnsafeInlineWithoutNonce(value)) {
+			const weakness = cspWeakness(value);
+			if (weakness) {
 				return {
 					pass: false,
-					message: `Content-Security-Policy is overly permissive: ${value.substring(0, 100)}`,
+					message: `Content-Security-Policy is overly permissive (${weakness}): ${value.substring(0, 100)}`,
 				};
 			}
 			return { pass: true, message: "" };
@@ -74,7 +136,7 @@ const HEADER_RULES: HeaderRule[] = [
 		cweId: "CWE-16",
 		check: (value) => {
 			if (!value) return { pass: false, message: "X-Content-Type-Options header is missing" };
-			if (value.toLowerCase() !== "nosniff") {
+			if (collapseRepeatedToken(value) !== "nosniff") {
 				return {
 					pass: false,
 					message: `X-Content-Type-Options is "${value}", should be "nosniff"`,
@@ -91,7 +153,7 @@ const HEADER_RULES: HeaderRule[] = [
 		cweId: "CWE-1021",
 		check: (value) => {
 			if (!value) return { pass: false, message: "X-Frame-Options header is missing" };
-			const upper = value.toUpperCase();
+			const upper = (collapseRepeatedToken(value) ?? value).toUpperCase();
 			if (upper !== "DENY" && upper !== "SAMEORIGIN") {
 				return {
 					pass: false,
@@ -225,6 +287,14 @@ function evaluateRule(
 ): { pass: boolean; message: string } {
 	const value = normalized[rule.header];
 
+	// CSP frame-ancestors supersedes X-Frame-Options in every current browser.
+	if (
+		rule.id === "header-missing-xfo" &&
+		hasFrameAncestors(normalized["content-security-policy"])
+	) {
+		return { pass: true, message: "" };
+	}
+
 	if (rule.id === "header-missing-hsts" && options?.minHSTSMaxAge !== undefined) {
 		const minAge = options.minHSTSMaxAge;
 		if (!value) return { pass: false, message: "HSTS header is missing" };
@@ -260,10 +330,23 @@ function validateCSPDirectives(
 	}
 }
 
+function assertKnownHeaderNames(options?: HeaderCheckOptions): void {
+	const known = new Set(HEADER_RULES.map((r) => r.header));
+	const given = [...(options?.skip ?? []), ...(options?.only ?? [])];
+	const unknown = given.filter((h) => !known.has(h.toLowerCase()));
+	if (unknown.length > 0) {
+		throw new Error(
+			`[kovar] Unknown header name(s) in skip/only: ${unknown.join(", ")}. Use header names, e.g. ${[...known].slice(0, 3).join(", ")}`,
+		);
+	}
+}
+
 export function analyzeHeaders(
 	headers: Record<string, string>,
 	options?: HeaderCheckOptions,
 ): SecurityFinding[] {
+	rejectRemovedOptions("headers", options, ["allowXFrameOptionsSameOrigin"]);
+	assertKnownHeaderNames(options);
 	const normalized: Record<string, string> = {};
 	for (const [key, value] of Object.entries(headers)) {
 		normalized[key.toLowerCase()] = value;

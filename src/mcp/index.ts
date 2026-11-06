@@ -1,3 +1,8 @@
+import { warnDeprecated } from "../utils/deprecation.js";
+
+/** @deprecated Moving to Orla Labs Caliper; removed in Kovar 0.8. */
+warnDeprecated("KOVAR_DEP_MCP");
+
 export { startMcpServer, type StartMcpServerOptions } from "./server.js";
 export {
 	Store,

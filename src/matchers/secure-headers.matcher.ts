@@ -19,6 +19,14 @@ export async function toHaveSecureHeaders(
 	const findings = analyzeHeaders(headers, options);
 	const failures = filterFailures(findings);
 	const pass = failures.length === 0;
+	const hstsOverHttp =
+		(typeof received.url === "function" ? received.url() : "").startsWith("http://") &&
+		failures.some((f) => f.header === "strict-transport-security");
+	const httpNote = hstsOverHttp
+		? "\n\n  Note: this response was served over plain http://, where browsers ignore HSTS anyway." +
+			"\n  Run this check against your HTTPS staging URL, or for local runs pass" +
+			'\n  { skip: ["strict-transport-security"] }.'
+		: "";
 
 	return {
 		pass,
@@ -29,7 +37,7 @@ export async function toHaveSecureHeaders(
 				"All security headers are properly configured.",
 				this.utils,
 				this.isNot,
-			),
+			) + httpNote,
 		name: "toHaveSecureHeaders",
 		expected: "All security headers properly configured",
 		actual: received,

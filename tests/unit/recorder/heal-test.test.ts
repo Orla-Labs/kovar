@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockLLMProvider } from "../../helpers/index.js";
 
@@ -16,7 +17,7 @@ vi.mock("node:fs", () => ({
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { SelfHealer } from "../../../src/recorder/self-healer.js";
+import { SelfHealer, healConfirmYes } from "../../../src/recorder/self-healer.js";
 
 const mockedExecFileSync = vi.mocked(execFileSync);
 const mockedReadFileSync = vi.mocked(readFileSync);
@@ -29,6 +30,7 @@ function createHealer(overrides: { maxAttempts?: number; outputDir?: string } = 
 		provider,
 		overrides.outputDir ?? "./tests",
 		overrides.maxAttempts ?? 3,
+		healConfirmYes,
 	);
 	return { healer, provider };
 }
@@ -85,8 +87,9 @@ describe("runTest", () => {
 		healer.runTest("./tests/my-test.spec.ts");
 		expect(mockedExecFileSync).toHaveBeenCalledWith(
 			"npx",
-			["playwright", "test", "./tests/my-test.spec.ts", "--reporter=line"],
+			["--no", "playwright", "test", resolve("./tests/my-test.spec.ts"), "--reporter=line"],
 			expect.objectContaining({
+				env: expect.any(Object),
 				timeout: 60000,
 				stdio: "pipe",
 				encoding: "utf-8",

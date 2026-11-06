@@ -73,8 +73,16 @@ describe("isReflectedUnescaped", () => {
 
 	it("detects template literal breakout", () => {
 		const tplPayload = makePayload("${alert('xss')}");
-		const body = "const x = `${alert('xss')}`;";
+		const body = "<script>const x = `${alert('xss')}`;</script>";
 		expect(isReflectedUnescaped(body, tplPayload)).toBe(true);
+	});
+
+	it("does not flag quote/javascript:/template payloads reflected inertly in a text node", () => {
+		const body =
+			"<script src=/app.js></script><p>You searched: javascript:alert('xss') \" onfocus=\"alert(1)\" ${alert('xss')}</p>";
+		for (const p of ["javascript:alert('xss')", '" onfocus="alert(1)', "${alert('xss')}"]) {
+			expect(isReflectedUnescaped(body, makePayload(p)), p).toBe(false);
+		}
 	});
 
 	it("detects iframe srcdoc payload", () => {

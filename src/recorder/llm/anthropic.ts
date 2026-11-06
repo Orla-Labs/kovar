@@ -3,7 +3,8 @@ import type { LLMProvider, LLMResponse, PromptPayload } from "./types.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+// Verified current at the 0.7.0 merge (2026-11-06). claude-sonnet-4-20250514 was stale.
+export const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5-5";
 
 function sanitizeErrorDetail(msg: string): string {
 	return msg.replace(/\b(sk-|pk-|key-|Bearer\s+)[a-zA-Z0-9_-]{10,}\b/g, "[REDACTED]");
@@ -14,7 +15,7 @@ export class AnthropicProvider implements LLMProvider {
 
 	constructor(
 		private apiKey: string,
-		private model = DEFAULT_MODEL,
+		private model = DEFAULT_ANTHROPIC_MODEL,
 	) {}
 
 	async generate(payload: PromptPayload): Promise<LLMResponse> {

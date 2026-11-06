@@ -1,11 +1,11 @@
 {
 	"name": "@orlalabs/kovar",
-	"version": "0.6.0",
+	"version": "0.7.0",
 	"description": "Security testing assertions for Playwright",
 	"license": "Apache-2.0",
 	"type": "module",
 	"engines": {
-		"node": ">=18"
+		"node": ">=20.19.0"
 	},
 	"exports": {
 		".": {
@@ -77,7 +77,18 @@
 				"types": "./dist/mcp/index.d.cts",
 				"default": "./dist/mcp/index.cjs"
 			}
-		}
+		},
+		"./ci/baseline": {
+			"import": {
+				"types": "./dist/ci/baseline.d.ts",
+				"default": "./dist/ci/baseline.js"
+			},
+			"require": {
+				"types": "./dist/ci/baseline.d.cts",
+				"default": "./dist/ci/baseline.cjs"
+			}
+		},
+		"./package.json": "./package.json"
 	},
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
@@ -88,7 +99,7 @@
 	"files": ["dist", "bin", "LICENSE", "README.md"],
 	"scripts": {
 		"build:browser": "tsx scripts/build-browser.ts",
-		"build": "tsup && npm run build:browser",
+		"build": "npm run clean && tsup && npm run build:browser",
 		"dev": "tsup && npm run build:browser",
 		"test": "vitest run",
 		"test:watch": "vitest",
@@ -97,23 +108,33 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
-		"prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build"
+		"prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build",
+		"clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+		"test:accuracy": "playwright test -c playwright.accuracy.config.ts"
 	},
 	"peerDependencies": {
-		"@playwright/test": ">=1.40.0"
+		"@playwright/test": ">=1.40.0",
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"better-sqlite3": "^12.9.0 || ^13.0.0",
+		"@babel/generator": "^7.29.1 || ^8.0.0",
+		"@babel/parser": "^7.29.2 || ^8.0.0",
+		"@babel/traverse": "^7.29.0 || ^8.0.0",
+		"@babel/types": "^7.29.0 || ^8.0.0"
 	},
 	"devDependencies": {
-		"@babel/generator": "^7.29.1",
-		"@babel/parser": "^7.29.2",
-		"@babel/traverse": "^7.29.0",
-		"@babel/types": "^7.29.0",
+		"@babel/generator": "^7.29.1 || ^8.0.0",
+		"@babel/parser": "^7.29.2 || ^8.0.0",
+		"@babel/traverse": "^7.29.0 || ^8.0.0",
+		"@babel/types": "^7.29.0 || ^8.0.0",
 		"@biomejs/biome": "^1.9.0",
+		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@playwright/test": "^1.50.0",
 		"@types/babel__generator": "^7.27.0",
 		"@types/babel__traverse": "^7.28.0",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/express": "^5.0.0",
 		"@types/node": "^22.0.0",
+		"better-sqlite3": "^12.9.0 || ^13.0.0",
 		"express": "^4.21.0",
 		"tsup": "^8.3.0",
 		"tsx": "^4.21.0",
@@ -122,7 +143,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Orla-Labs/kovar.git"
+		"url": "git+https://github.com/Orla-Labs/kovar.git"
 	},
 	"homepage": "https://github.com/Orla-Labs/kovar#readme",
 	"bugs": {
@@ -140,8 +161,24 @@
 		"owasp",
 		"dast"
 	],
-	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.29.0",
-		"better-sqlite3": "^12.9.0"
+	"peerDependenciesMeta": {
+		"@modelcontextprotocol/sdk": {
+			"optional": true
+		},
+		"better-sqlite3": {
+			"optional": true
+		},
+		"@babel/generator": {
+			"optional": true
+		},
+		"@babel/parser": {
+			"optional": true
+		},
+		"@babel/traverse": {
+			"optional": true
+		},
+		"@babel/types": {
+			"optional": true
+		}
 	}
 }

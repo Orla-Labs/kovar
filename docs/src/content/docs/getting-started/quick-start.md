@@ -16,7 +16,24 @@ test("login page has secure headers", async ({ page }) => {
 });
 ```
 
-That single line checks 12 security headers against OWASP recommendations.
+That single line checks 12 security headers against OWASP recommendations. This assumes `baseURL` is set in `playwright.config.ts` (see [Installation](/getting-started/installation)).
+
+## Expect Your First Run To Be Red
+
+Most apps fail this test the first time. That is the point, but it helps to know what you are looking at:
+
+- The matcher fails only on **critical** and **high** findings. Medium/low findings are printed for information.
+- Each finding prints a `Fix:` line with the header value to set. For framework-specific code (Express, Fastify, Next.js, Koa, Hono), see [Auto-Remediation](/remediation/overview).
+- **Running against `http://localhost`?** HSTS is reported as critical, but browsers ignore HSTS over plain http. Either run the check against your HTTPS staging URL, or skip it whenever the response was served over http (this also covers CI runs that use a local `webServer`):
+
+```typescript
+await expect(response!).toHaveSecureHeaders({
+  skip: response!.url().startsWith("http://") ? ["strict-transport-security"] : [],
+});
+```
+
+- `skip` and `only` take full, lowercase header names (`"content-security-policy"`, not `"CSP"`).
+- To adopt Kovar on an app with known gaps, start with `only: [...]` for the headers you already set, so the test guards against regressions today, then widen it as you fix the rest.
 
 ## Add Security to Existing Tests
 
@@ -25,21 +42,26 @@ You don't need separate security test files. Add security checks to your existin
 ```typescript
 import { test, expect } from "@orlalabs/kovar";
 
-test("user can log in", async ({ page, context, security }) => {
+test("user can log in", async ({ page, context }) => {
   // Your existing test logic
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email" }).fill("test@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("Test1234!");
-  await page.getByRole("button", { name: "Sign In" }).click();
+  await page.getByLabel("Password").fill("Test1234!");
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith("/dashboard")),
+    page.getByRole("button", { name: "Sign In" }).click(),
+  ]);
   await expect(page).toHaveURL("/dashboard");
 
   // Add security checks -- one line each
-  await security.headers.assert();
-  await security.cookies.assert();
+  await expect(response).toHaveSecureHeaders();
+  await expect(context).toHaveSecureCookies();
 });
 ```
 
-The `security` fixture is injected automatically when you import from `@orlalabs/kovar`.
+:::note
+The matchers above check the exact navigation `response` the browser received. The `security` fixture (`security.headers.assert()`) re-requests `page.url()` with the page's cookies, so it also works behind login, but it checks a fresh response rather than the one the browser got.
+:::
 
 ## Dedicated Security Test File
 
@@ -85,7 +107,7 @@ test("API endpoint has secure headers", async ({ request }) => {
 
 ## Run a Full Audit
 
-The `security.audit()` method runs all checks at once:
+The `security.audit()` method runs headers and cookies by default (XSS, CSRF, CORS, auth and accessibility are opt-in):
 
 ```typescript
 test("full security audit", async ({ page, security }) => {

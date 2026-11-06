@@ -7,27 +7,32 @@ on:
     branches: [main]
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-typecheck:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
+          node-version: 24
       - run: npm ci
       - run: npm run build:browser
       - run: npm run lint
       - run: npm run typecheck
 
   unit-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [18, 20, 22]
+        # engines floor (>=20.19) plus current LTS lines
+        node-version: ['20.19', 22, 24]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
@@ -37,31 +42,108 @@ jobs:
   integration-tests:
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
-        playwright-version: ['1.48.0', '1.50.0', '1.52.0']
+        # peer floor (>=1.40.0), a mid-range release, and the latest release
+        playwright-version: ['1.40.0', '1.52.0', '1.65.0']
+        node-version: [22]
+        include:
+          - playwright-version: '1.65.0'
+            node-version: 24
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
       - run: npm ci
       - run: npm run build
-      - run: npm install -D @playwright/test@${{ matrix.playwright-version }}
+      - run: npm install --no-save @playwright/test@${{ matrix.playwright-version }}
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
 
-  build:
-    runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, unit-tests, integration-tests]
+  accuracy:
+    # Detection accuracy against the known-good / known-vulnerable fixture app.
+    # Confirmed gaps are kept visible as test.fail(); any drift fails the job.
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:accuracy
+
+  package:
+    # Tests above run against src/ and dist/ inside the repo. This job installs
+    # the packed tarball into an empty project, the way users get it.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      - run: npx --yes publint@0.3 --strict
+      - run: npx --yes @arethetypeswrong/cli@0.18 --pack . --profile node16 --ignore-rules false-export-default
+      - run: scripts/smoke-pack.sh 1.65.0
+
+  action:
+    # Exercise the composite GitHub Action end to end against a local fixture server.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      - run: mv "$(npm pack --silent | tail -1)" kovar.tgz
+      - name: Start fixture server
+        run: |
+          cat > "$RUNNER_TEMP/serve.mts" <<'TS'
+          import { startServer } from "${{ github.workspace }}/tests/integration/fixtures/test-server.ts";
+          const { url } = await startServer(4789);
+          console.log(url);
+          TS
+          nohup npx tsx "$RUNNER_TEMP/serve.mts" > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://localhost:4789/secure >/dev/null && break; sleep 1; done
+      - name: Run action against a secure page
+        id: secure
+        uses: ./.github/actions/security-check
+        with:
+          url: http://localhost:4789/secure
+          comment: "false"
+          kovar-package: ./kovar.tgz
+      - name: Run action against an insecure page (must fail)
+        id: insecure
+        continue-on-error: true
+        uses: ./.github/actions/security-check
+        with:
+          url: http://localhost:4789/insecure
+          comment: "false"
+          kovar-package: ./kovar.tgz
+      - name: Assert outputs
+        run: |
+          test "${{ steps.secure.outputs.passed }}" = "true"
+          test -s "${{ steps.secure.outputs.json-path }}"
+          test -s "${{ steps.secure.outputs.sarif-path }}"
+          test "${{ steps.insecure.outcome }}" = "failure"
+
+  build:
+    runs-on: ubuntu-24.04
+    needs: [lint-and-typecheck, unit-tests, integration-tests, accuracy, package, action]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
       - run: npm ci
       - run: npm run build
       - run: npm pack
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: kovar-package
           path: orlalabs-kovar-*.tgz

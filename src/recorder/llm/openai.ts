@@ -2,7 +2,6 @@ import { LLMRequestError, fetchWithRetry } from "./retry.js";
 import type { LLMProvider, LLMResponse, PromptPayload } from "./types.js";
 
 const API_URL = "https://api.openai.com/v1/chat/completions";
-const DEFAULT_MODEL = "gpt-4o";
 
 function sanitizeErrorDetail(msg: string): string {
 	return msg.replace(/\b(sk-|pk-|key-|Bearer\s+)[a-zA-Z0-9_-]{10,}\b/g, "[REDACTED]");
@@ -11,10 +10,18 @@ function sanitizeErrorDetail(msg: string): string {
 export class OpenAIProvider implements LLMProvider {
 	name = "openai";
 
+	/**
+	 * There is no default OpenAI model: Kovar cannot keep one current, and a retired
+	 * default fails on first run. Pass `--model` explicitly.
+	 */
 	constructor(
 		private apiKey: string,
-		private model = DEFAULT_MODEL,
-	) {}
+		private model: string,
+	) {
+		if (!model) {
+			throw new Error("The OpenAI provider requires a model name (--model), e.g. --model <id>.");
+		}
+	}
 
 	async generate(payload: PromptPayload): Promise<LLMResponse> {
 		const response = await fetchWithRetry(

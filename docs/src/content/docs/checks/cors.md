@@ -36,16 +36,18 @@ CWE mappings:
 
 ```typescript
 await expect(request).toHaveSecureCORS("/api/data", {
-  trustedOrigins: ["https://app.example.com"],        // origins that should be allowed
-  dangerousOrigins: ["null", "http://evil.com"],      // origins to test against (default: ["null", "http://evil.com"])
+  trustedOrigins: ["https://app.example.com"],        // never treated as an attack origin
+  dangerousOrigins: ["null", "http://evil.com"],      // replaces the default probe set
 });
 ```
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `trustedOrigins` | `string[]` | Origins that should be allowed by the CORS policy |
-| `dangerousOrigins` | `string[]` | Origins to test against (default: `["null", "http://evil.com"]`) |
-| `url` | `string` | URL to test (defaults to current page URL) |
+| `dangerousOrigins` | `string[]` | Origins to test against. Default: `null`, `http://evil.com`, plus bypass origins derived from the target host (to catch `includes` / `startsWith` / `endsWith` / unanchored-regex allowlists) |
+| `trustedOrigins` | `string[]` | Origins you allow on purpose; removed from the probe set |
+| `url` | `string` | URL to test; overrides the URL argument (with the fixture, defaults to the current page URL) |
+
+Each origin is sent both as an `OPTIONS` preflight and on an actual `GET`, so an app that has no preflight handler but reflects `Origin` on `GET` is still caught. If the endpoint cannot be reached, the check reports `cors-check-error` (high) instead of passing.
 
 ## Using the Fixture
 

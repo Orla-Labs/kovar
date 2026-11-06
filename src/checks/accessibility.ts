@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import type { SecurityFinding } from "../types/results.js";
 
+/** @deprecated Removed in Kovar 0.8 with the accessibility check. */
 export interface AccessibilityCheckOptions {
 	skip?: string[];
 	only?: string[];
@@ -309,6 +310,10 @@ function shouldRun(rule: A11yRule, options?: AccessibilityCheckOptions): boolean
 	return true;
 }
 
+/**
+ * @deprecated Removed in Kovar 0.8. Use @axe-core/playwright. (No runtime warning here,
+ * to keep `/core` free of side effects; the matcher and fixture warn.)
+ */
 export async function checkAccessibility(
 	page: Page,
 	options?: AccessibilityCheckOptions,

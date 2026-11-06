@@ -18,6 +18,7 @@ import type {
 	XSSCheckOptions,
 } from "../types/index.js";
 import { summarize } from "../types/results.js";
+import { warnDeprecated } from "../utils/deprecation.js";
 
 function summarizeSeverities(findings: SecurityFinding[]): string {
 	const counts: Record<string, number> = {};
@@ -35,7 +36,13 @@ export class SecurityAssertionError extends Error {
 		public readonly url: string,
 	) {
 		const summary = summarizeSeverities(findings);
-		const details = findings.map((f) => `  [${f.severity.toUpperCase()}] ${f.message}`).join("\n");
+		const details = findings
+			.map((f) => {
+				const subject = f.header ?? f.cookie ?? "";
+				const prefix = subject ? `${subject}: ` : "";
+				return `  [${f.severity.toUpperCase()}] ${prefix}${f.message}\n           Fix: ${f.remediation}`;
+			})
+			.join("\n");
 		super(`Security assertion failed (${summary}) at ${url}:\n${details}`);
 		this.name = "SecurityAssertionError";
 	}
@@ -102,10 +109,13 @@ export class SecurityFixture {
 		this.headers = new CheckFacade(this, (opts) => this.checkHeaders(opts));
 		this.cookies = new CheckFacade(this, (opts) => this.checkCookies(opts));
 		this.xss = new CheckFacade(this, (opts) => this.checkXSS(opts));
-		this.csrf = new CheckFacade(this, (opts) => checkCSRF(this.request, this.page.url(), opts));
+		this.csrf = new CheckFacade(this, (opts) => checkCSRF(this.pageRequest, this.page.url(), opts));
 		this.cors = new CheckFacade(this, (opts) => checkCORS(this.request, this.page.url(), opts));
 		this.auth = new CheckFacade(this, (opts) => checkAuth(this.request, this.page.url(), opts));
-		this.accessibility = new CheckFacade(this, (opts) => checkAccessibility(this.page, opts));
+		this.accessibility = new CheckFacade(this, (opts) => {
+			warnDeprecated("KOVAR_DEP_A11Y");
+			return checkAccessibility(this.page, opts);
+		});
 
 		this.registerAuditCheck({
 			name: "headers",
@@ -122,7 +132,7 @@ export class SecurityFixture {
 		});
 		this.registerAuditCheck({
 			name: "csrf",
-			run: (opts) => checkCSRF(this.request, this.page.url(), opts.csrf),
+			run: (opts) => checkCSRF(this.pageRequest, this.page.url(), opts.csrf),
 			optIn: true,
 		});
 		this.registerAuditCheck({
@@ -137,9 +147,21 @@ export class SecurityFixture {
 		});
 		this.registerAuditCheck({
 			name: "accessibility",
-			run: (opts) => checkAccessibility(this.page, opts.accessibility),
+			run: (opts) => {
+				warnDeprecated("KOVAR_DEP_A11Y");
+				return checkAccessibility(this.page, opts.accessibility);
+			},
 			optIn: true,
 		});
+	}
+
+	/**
+	 * Request context that shares cookies with the page under test, so checks of
+	 * a logged-in page run as that user (the `request` fixture has its own jar).
+	 * Auth and CORS deliberately keep using the separate `request` context.
+	 */
+	private get pageRequest(): APIRequestContext {
+		return this.context.request;
 	}
 
 	getPageUrl(): string {
@@ -165,13 +187,21 @@ export class SecurityFixture {
 
 	async audit(options?: AuditOptions): Promise<SecurityReport> {
 		if (this.page.isClosed()) {
-			console.warn("[kovar] Page is closed, skipping security checks");
+			const findings: SecurityFinding[] = [
+				{
+					id: "audit-page-closed",
+					category: "configuration",
+					severity: "high",
+					message: "Security audit could not run: the page is closed, so nothing was checked",
+					remediation: "Call security.audit() before the page or context is closed.",
+				},
+			];
 			return {
 				url: "unknown",
 				timestamp: new Date().toISOString(),
 				duration: 0,
-				findings: [],
-				summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+				findings,
+				summary: summarize(findings),
 			};
 		}
 
@@ -185,7 +215,18 @@ export class SecurityFixture {
 			);
 		}
 
+		if (explicitChecks) {
+			const known = new Set(this.auditChecks.map((c) => c.name));
+			const unknown = [...explicitChecks].filter((c) => !known.has(c));
+			if (unknown.length > 0) {
+				throw new Error(
+					`[kovar] Unknown audit check(s): ${unknown.join(", ")}. Valid checks: ${[...known].join(", ")}`,
+				);
+			}
+		}
+
 		const allFindings: SecurityFinding[] = [];
+		const checksRun: string[] = [];
 
 		for (const entry of this.auditChecks) {
 			if (explicitChecks) {
@@ -197,6 +238,7 @@ export class SecurityFixture {
 
 			const findings = await entry.run(options ?? {});
 			allFindings.push(...findings);
+			checksRun.push(entry.name);
 		}
 
 		this.findings.push(...allFindings);
@@ -207,6 +249,7 @@ export class SecurityFixture {
 			duration: Date.now() - start,
 			findings: allFindings,
 			summary: summarize(allFindings),
+			checksRun,
 		};
 	}
 
@@ -220,15 +263,21 @@ export class SecurityFixture {
 	}
 
 	private async checkHeaders(options?: HeaderCheckOptions): Promise<SecurityFinding[]> {
-		if (this.page.isClosed()) {
-			console.warn("[kovar] Page is closed, skipping header checks");
-			return [];
+		const url = this.page.isClosed() ? "" : this.page.url();
+		if (!url || url === "about:blank") {
+			return [
+				{
+					id: "headers-check-skipped",
+					category: "headers",
+					severity: "high",
+					message:
+						"Header check could not run: no page has been loaded (page is closed or about:blank)",
+					remediation: "Navigate with page.goto(url) before running security.headers checks.",
+				},
+			];
 		}
 
-		const url = this.page.url();
-		if (!url || url === "about:blank") return [];
-
-		const response = await this.request.fetch(url);
+		const response = await this.pageRequest.fetch(url);
 		return analyzeHeaders(response.headers(), options);
 	}
 
@@ -238,7 +287,7 @@ export class SecurityFixture {
 	}
 
 	private async checkXSS(options?: XSSCheckOptions): Promise<SecurityFinding[]> {
-		const scanner = new XSSScanner(this.page, this.request);
+		const scanner = new XSSScanner(this.page, this.pageRequest);
 		const result = await scanner.scan(options);
 		return result.findings;
 	}

@@ -3,7 +3,6 @@ export interface HeaderCheckOptions {
 	only?: string[];
 	requiredCSPDirectives?: string[];
 	minHSTSMaxAge?: number;
-	allowXFrameOptionsSameOrigin?: boolean;
 }
 
 export interface CookieCheckOptions {
