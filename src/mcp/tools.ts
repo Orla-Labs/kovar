@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
@@ -427,6 +428,31 @@ function compileMatchesRegex(index: number, source: string): RegExp {
 	}
 }
 
+const REGEX_TIMEOUT_MS = 1000;
+
+/**
+ * `matches` is caller-supplied and tested against stored (possibly large,
+ * third-party) message content. A catastrophic-backtracking pattern would block
+ * the single-threaded MCP server indefinitely, so bound execution time.
+ */
+function safeRegexTest(index: number, re: RegExp, input: string): boolean {
+	try {
+		return runInNewContext("re.test(input)", { re, input }, { timeout: REGEX_TIMEOUT_MS }) === true;
+	} catch (err) {
+		const code = (err as { code?: string }).code;
+		if (code === "ERR_SCRIPT_EXECUTION_TIMEOUT") {
+			throw new McpToolError(
+				"INVALID_INPUT",
+				`Regex at expected[${index}].matches exceeded ${REGEX_TIMEOUT_MS}ms (catastrophic backtracking?)`,
+				{
+					errors: [{ path: `expected[${index}].matches`, message: "regex evaluation timed out" }],
+				},
+			);
+		}
+		throw err;
+	}
+}
+
 function compareMessage(
 	index: number,
 	expected: MessageConstraint,
@@ -447,7 +473,7 @@ function compareMessage(
 	}
 	if (expected.matches !== undefined) {
 		const re = compileMatchesRegex(index, expected.matches);
-		if (!re.test(actual.content)) {
+		if (!safeRegexTest(index, re, actual.content)) {
 			reasons.push(`matches: actual content does not match /${expected.matches}/`);
 		}
 	}
