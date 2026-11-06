@@ -12,7 +12,7 @@ export default defineConfig([
 		format: ["esm", "cjs"],
 		dts: true,
 		splitting: true,
-		clean: true,
+		clean: false,
 		sourcemap: true,
 		treeshake: true,
 		target: "node20",

@@ -99,7 +99,7 @@
 	"files": ["dist", "bin", "LICENSE", "README.md"],
 	"scripts": {
 		"build:browser": "tsx scripts/build-browser.ts",
-		"build": "tsup && npm run build:browser",
+		"build": "npm run clean && tsup && npm run build:browser",
 		"dev": "tsup && npm run build:browser",
 		"test": "vitest run",
 		"test:watch": "vitest",
@@ -108,7 +108,8 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
-		"prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build"
+		"prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build",
+		"clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
 	},
 	"peerDependencies": {
 		"@playwright/test": ">=1.40.0",
