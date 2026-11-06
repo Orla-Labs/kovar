@@ -299,6 +299,29 @@ document.getElementById('q').addEventListener('input', (e) => {
 			),
 		);
 	},
+	"/vuln/xss-authenticated": (req, res, url) => {
+		// Reflected XSS behind login; anonymous requests are redirected to /login.
+		if (!hasSession(req)) {
+			res.writeHead(302, { Location: "/login" });
+			res.end();
+			return;
+		}
+		const q = url.searchParams.get("q");
+		res.writeHead(200, { "Content-Type": "text/html" });
+		res.end(
+			html(
+				`<form method="GET" action="/vuln/xss-authenticated"><input name="q"><button type="submit">Go</button></form>${q ? `<p>${q}</p>` : ""}`,
+			),
+		);
+	},
+	"/vuln/xss-dead-form-action": (_q, res) => {
+		res.writeHead(200, { "Content-Type": "text/html" });
+		res.end(
+			html(
+				`<form method="POST" action="http://localhost:1/submit"><input name="q"><button type="submit">Go</button></form>`,
+			),
+		);
+	},
 	"/vuln/xss-alert-filtered": (_q, res, url) => {
 		// Naive blocklist strips "alert" but leaves markup intact: still exploitable.
 		const q = (url.searchParams.get("q") ?? "").replace(/alert/gi, "");
@@ -321,11 +344,15 @@ document.getElementById('q').addEventListener('input', (e) => {
 
 	// ---------------------------------------------------------------- session / auth / CSRF
 	"/login": (_q, res) => {
+		res.writeHead(200, { "Content-Type": "text/html" });
+		res.end(html("<h1>Login page</h1>"));
+	},
+	"/do-login": (_q, res) => {
 		res.writeHead(200, {
 			"Content-Type": "text/html",
 			"Set-Cookie": `sid=${SESSION_VALUE}; Path=/; HttpOnly`,
 		});
-		res.end(html("<h1>Login page</h1><form method=POST><input name=user></form>"));
+		res.end(html("<h1>Logged in</h1>"));
 	},
 	"/good/auth-redirect": (req, res) => {
 		// Classic server-rendered app: unauthenticated -> 302 to /login.

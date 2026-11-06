@@ -102,7 +102,7 @@ export class SecurityFixture {
 		this.headers = new CheckFacade(this, (opts) => this.checkHeaders(opts));
 		this.cookies = new CheckFacade(this, (opts) => this.checkCookies(opts));
 		this.xss = new CheckFacade(this, (opts) => this.checkXSS(opts));
-		this.csrf = new CheckFacade(this, (opts) => checkCSRF(this.request, this.page.url(), opts));
+		this.csrf = new CheckFacade(this, (opts) => checkCSRF(this.pageRequest, this.page.url(), opts));
 		this.cors = new CheckFacade(this, (opts) => checkCORS(this.request, this.page.url(), opts));
 		this.auth = new CheckFacade(this, (opts) => checkAuth(this.request, this.page.url(), opts));
 		this.accessibility = new CheckFacade(this, (opts) => checkAccessibility(this.page, opts));
@@ -122,7 +122,7 @@ export class SecurityFixture {
 		});
 		this.registerAuditCheck({
 			name: "csrf",
-			run: (opts) => checkCSRF(this.request, this.page.url(), opts.csrf),
+			run: (opts) => checkCSRF(this.pageRequest, this.page.url(), opts.csrf),
 			optIn: true,
 		});
 		this.registerAuditCheck({
@@ -140,6 +140,15 @@ export class SecurityFixture {
 			run: (opts) => checkAccessibility(this.page, opts.accessibility),
 			optIn: true,
 		});
+	}
+
+	/**
+	 * Request context that shares cookies with the page under test, so checks of
+	 * a logged-in page run as that user (the `request` fixture has its own jar).
+	 * Auth and CORS deliberately keep using the separate `request` context.
+	 */
+	private get pageRequest(): APIRequestContext {
+		return this.context.request;
 	}
 
 	getPageUrl(): string {
@@ -165,13 +174,21 @@ export class SecurityFixture {
 
 	async audit(options?: AuditOptions): Promise<SecurityReport> {
 		if (this.page.isClosed()) {
-			console.warn("[kovar] Page is closed, skipping security checks");
+			const findings: SecurityFinding[] = [
+				{
+					id: "audit-page-closed",
+					category: "configuration",
+					severity: "high",
+					message: "Security audit could not run: the page is closed, so nothing was checked",
+					remediation: "Call security.audit() before the page or context is closed.",
+				},
+			];
 			return {
 				url: "unknown",
 				timestamp: new Date().toISOString(),
 				duration: 0,
-				findings: [],
-				summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+				findings,
+				summary: summarize(findings),
 			};
 		}
 
@@ -220,15 +237,21 @@ export class SecurityFixture {
 	}
 
 	private async checkHeaders(options?: HeaderCheckOptions): Promise<SecurityFinding[]> {
-		if (this.page.isClosed()) {
-			console.warn("[kovar] Page is closed, skipping header checks");
-			return [];
+		const url = this.page.isClosed() ? "" : this.page.url();
+		if (!url || url === "about:blank") {
+			return [
+				{
+					id: "headers-check-skipped",
+					category: "headers",
+					severity: "high",
+					message:
+						"Header check could not run: no page has been loaded (page is closed or about:blank)",
+					remediation: "Navigate with page.goto(url) before running security.headers checks.",
+				},
+			];
 		}
 
-		const url = this.page.url();
-		if (!url || url === "about:blank") return [];
-
-		const response = await this.request.fetch(url);
+		const response = await this.pageRequest.fetch(url);
 		return analyzeHeaders(response.headers(), options);
 	}
 
@@ -238,7 +261,7 @@ export class SecurityFixture {
 	}
 
 	private async checkXSS(options?: XSSCheckOptions): Promise<SecurityFinding[]> {
-		const scanner = new XSSScanner(this.page, this.request);
+		const scanner = new XSSScanner(this.page, this.pageRequest);
 		const result = await scanner.scan(options);
 		return result.findings;
 	}

@@ -39,7 +39,7 @@ function failing(findings: SecurityFinding[]): string[] {
 }
 
 async function login(page: Page): Promise<APIRequestContext> {
-	await page.goto(`${app.url}/login`);
+	await page.goto(`${app.url}/do-login`);
 	return page.context().request;
 }
 
@@ -176,6 +176,27 @@ test.describe("xss (default apiFirst mode)", () => {
 	});
 });
 
+test.describe("xss: fixture vs matcher, and could-not-run", () => {
+	test("FN check: logged-in page is scanned with the page's session by the fixture too", async ({
+		page,
+		request,
+	}) => {
+		await login(page);
+		const v = await xssVerdicts(page, request, "/vuln/xss-authenticated");
+		expect(v.matcherFails).toBe(true);
+		expect(v.fixtureFails).toBe(true);
+	});
+
+	test("silent-skip check: form whose target is unreachable must not pass", async ({
+		page,
+		request,
+	}) => {
+		const v = await xssVerdicts(page, request, "/vuln/xss-dead-form-action");
+		expect(v.matcherIds).toContain("xss-check-error");
+		expect(v.fixtureFails).toBe(true);
+	});
+});
+
 test.describe("xss (DOM mode, apiFirst:false)", () => {
 	test("control: raw reflection triggers dialog", async ({ page, request }) => {
 		const v = await xssVerdicts(page, request, "/vuln/xss-reflect", false);
@@ -287,5 +308,24 @@ test.describe("cors", () => {
 
 	test("silent-skip check: unreachable server must not pass", async ({ request }) => {
 		expect(failing(await checkCORS(request, "http://localhost:1/nothing"))).not.toEqual([]);
+	});
+});
+
+// ------------------------------------------------------------------------ fixture could-not-run
+
+test.describe("fixture: checks that could not run must not pass", () => {
+	test("headers.check() before any navigation", async ({ page, context, request }) => {
+		const fixture = new SecurityFixture(page, context, request);
+		expect(failing(await fixture.headers.check())).toEqual(["headers-check-skipped"]);
+	});
+
+	test("audit() on a closed page", async ({ browser, request }) => {
+		const ctx = await browser.newContext();
+		const p = await ctx.newPage();
+		const fixture = new SecurityFixture(p, ctx, request);
+		await p.close();
+		const report = await fixture.audit();
+		expect(report.summary.high).toBe(1);
+		await ctx.close();
 	});
 });
