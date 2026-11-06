@@ -12,9 +12,11 @@ function finding(overrides: Partial<SecurityFinding> & { id: string }): Security
 	};
 }
 
+const ALL_CHECKS = { checksRun: ["headers", "cookies", "xss"] };
+
 describe("evaluatePCIDSS", () => {
-	it("returns all pass when no findings exist (all requirements have kovarCheckIds)", () => {
-		const report = evaluatePCIDSS([]);
+	it("returns all pass when no findings exist and every check ran", () => {
+		const report = evaluatePCIDSS([], ALL_CHECKS);
 		expect(report.standard).toBe("PCI-DSS");
 		expect(report.version).toBe("4.0");
 		expect(report.summary.failed).toBe(0);
@@ -111,8 +113,8 @@ describe("evaluatePCIDSS", () => {
 		);
 	});
 
-	it("calculates 100% coverage since all requirements are testable", () => {
-		const report = evaluatePCIDSS([]);
+	it("calculates 100% coverage when every mapped check ran", () => {
+		const report = evaluatePCIDSS([], ALL_CHECKS);
 		expect(report.summary.coverage).toBe(100);
 	});
 
@@ -126,6 +128,15 @@ describe("evaluatePCIDSS", () => {
 	it("includes timestamp in ISO format", () => {
 		const report = evaluatePCIDSS([]);
 		expect(report.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+	});
+
+	it("does not report PASS for XSS requirements when XSS never ran", () => {
+		const report = evaluatePCIDSS([finding({ id: "header-missing-csp", severity: "critical" })]);
+		for (const id of ["6.2.4", "6.5.4"]) {
+			const req = report.requirements.find((r) => r.id === id);
+			if (req && req.findings.length === 0) expect(req.status, id).toBe("not-tested");
+		}
+		expect(report.summary.coverage).toBeLessThan(100);
 	});
 
 	it("unrelated findings do not cause failures", () => {
