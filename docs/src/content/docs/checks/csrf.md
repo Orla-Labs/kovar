@@ -54,7 +54,7 @@ await expect(request).toBeCSRFProtected("/api/transfer", {
 | `tokenHeaders` | `string[]` | Custom CSRF token header names |
 | `skip` | `string[]` | Endpoints to skip (substring match) |
 
-A `tokenCookies` option exists in the TypeScript types but has no effect.
+The `tokenCookies` option, which never had any effect, was removed in 0.7.0; passing it throws.
 
 ## Using the Fixture
 

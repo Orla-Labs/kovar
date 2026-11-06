@@ -59,7 +59,7 @@ await expect(response).toHaveSecureHeaders({
 | `requiredCSPDirectives` | `string[]` | CSP directives that must be present |
 | `minHSTSMaxAge` | `number` | Minimum HSTS max-age in seconds (default: 31536000) |
 
-`X-Frame-Options: SAMEORIGIN` is always accepted. (An `allowXFrameOptionsSameOrigin` option exists in the TypeScript types but has no effect in 0.6.0.)
+`X-Frame-Options: SAMEORIGIN` is always accepted. The `allowXFrameOptionsSameOrigin` option, which never had any effect, was removed in 0.7.0; passing it throws.
 
 ## Local Development Over HTTP
 

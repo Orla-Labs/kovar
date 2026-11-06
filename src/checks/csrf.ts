@@ -1,11 +1,11 @@
 import type { APIRequestContext } from "@playwright/test";
 import type { SecurityFinding } from "../types/results.js";
+import { rejectRemovedOptions } from "../utils/removed-options.js";
 
 export interface CSRFCheckOptions {
 	endpoints?: string[];
 	methods?: ("POST" | "PUT" | "DELETE" | "PATCH")[];
 	tokenHeaders?: string[];
-	tokenCookies?: string[];
 	skip?: string[];
 }
 
@@ -234,6 +234,7 @@ export async function checkCSRF(
 	url: string,
 	options?: CSRFCheckOptions,
 ): Promise<SecurityFinding[]> {
+	rejectRemovedOptions("csrf", options, ["tokenCookies"]);
 	const methods = options?.methods ?? DEFAULT_METHODS;
 	const tokenHeaders = options?.tokenHeaders ?? DEFAULT_TOKEN_HEADERS;
 	const skip = options?.skip ?? [];

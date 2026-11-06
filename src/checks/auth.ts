@@ -1,10 +1,10 @@
 import type { APIRequestContext, request as playwrightRequest } from "@playwright/test";
 import type { SecurityFinding } from "../types/results.js";
+import { rejectRemovedOptions } from "../utils/removed-options.js";
 
 export interface AuthCheckOptions {
 	endpoints?: string[];
 	methods?: ("GET" | "POST" | "PUT" | "DELETE")[];
-	expectedStatus?: number;
 	/**
 	 * Base URL for relative endpoints. Defaults to the current Playwright project's
 	 * `use.baseURL` when called inside a test.
@@ -147,6 +147,7 @@ export async function checkAuth(
 	url: string,
 	options?: AuthCheckOptions,
 ): Promise<SecurityFinding[]> {
+	rejectRemovedOptions("auth", options, ["expectedStatus"]);
 	const methods = options?.methods ?? DEFAULT_METHODS;
 	const endpoints = options?.endpoints ?? [url];
 	const findings: SecurityFinding[] = [];

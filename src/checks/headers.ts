@@ -1,4 +1,5 @@
 import type { HeaderCheckOptions, SecurityFinding } from "../types/index.js";
+import { rejectRemovedOptions } from "../utils/removed-options.js";
 
 interface HeaderRule {
 	id: string;
@@ -344,6 +345,7 @@ export function analyzeHeaders(
 	headers: Record<string, string>,
 	options?: HeaderCheckOptions,
 ): SecurityFinding[] {
+	rejectRemovedOptions("headers", options, ["allowXFrameOptionsSameOrigin"]);
 	assertKnownHeaderNames(options);
 	const normalized: Record<string, string> = {};
 	for (const [key, value] of Object.entries(headers)) {

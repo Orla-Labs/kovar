@@ -46,7 +46,7 @@ await expect(request).toRequireAuthentication("/api/admin/users", {
 | `methods` | `string[]` | HTTP methods to test (default: GET, POST, PUT, DELETE) |
 | `baseURL` | `string` | Base URL for relative endpoints (default: the project's `use.baseURL`) |
 
-An `expectedStatus` option exists in the TypeScript types but has no effect in 0.6.0.
+The `expectedStatus` option, which never had any effect, was removed in 0.7.0; passing it throws.
 
 ## Using the Fixture
 
