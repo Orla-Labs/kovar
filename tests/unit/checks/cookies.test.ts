@@ -92,11 +92,18 @@ describe("analyzeCookies", () => {
 				name: "__Host-session",
 				secure: true,
 				path: "/",
-				domain: "",
+				domain: "example.com",
 			}),
 		]);
 		const f = findings.find((f) => f.id === "cookie-invalid-host-prefix");
 		expect(f).toBeUndefined();
+	});
+
+	it("flags __Host- cookie set with a Domain attribute (leading-dot domain)", () => {
+		const findings = analyzeCookies([
+			makeCookie({ name: "__Host-session", secure: true, path: "/", domain: ".example.com" }),
+		]);
+		expect(findings.find((f) => f.id === "cookie-invalid-host-prefix")).toBeDefined();
 	});
 
 	it("flags invalid __Secure- prefix without Secure flag", () => {
@@ -109,8 +116,13 @@ describe("analyzeCookies", () => {
 		const sessionNames = [
 			"sessionId",
 			"auth_token",
-			"csrf_token",
 			"jwt",
+			"_myapp_session",
+			"laravel_session",
+			"ci_session",
+			"vercel_session_id",
+			"appSession",
+			"PHPSESSID",
 			"user_sid",
 			"login_state",
 		];
@@ -118,6 +130,14 @@ describe("analyzeCookies", () => {
 			const findings = analyzeCookies([makeCookie({ name, httpOnly: false })]);
 			const f = findings.find((f) => f.id === "cookie-missing-httponly");
 			expect(f, `${name} should be detected as session cookie`).toBeDefined();
+		}
+	});
+
+	it("does not require HttpOnly on JS-readable CSRF cookies", () => {
+		for (const name of ["XSRF-TOKEN", "csrftoken", "csrf_token", "__Host-csrf-token"]) {
+			const findings = analyzeCookies([makeCookie({ name, httpOnly: false })]);
+			const f = findings.find((f) => f.id === "cookie-missing-httponly");
+			expect(f, `${name} should NOT require HttpOnly`).toBeUndefined();
 		}
 	});
 

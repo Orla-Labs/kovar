@@ -1,4 +1,5 @@
 import type { SecurityFinding } from "../types/results.js";
+import { requirementWasTested, resolveChecksRun } from "./coverage.js";
 import type { ComplianceReport, ComplianceRequirement } from "./types.js";
 
 interface ASVSRequirementDef {
@@ -133,6 +134,7 @@ function matchesFinding(checkId: string, finding: SecurityFinding): boolean {
 function evaluateRequirement(
 	def: ASVSRequirementDef,
 	findings: SecurityFinding[],
+	ran: Set<string>,
 ): ComplianceRequirement {
 	const matched = findings.filter((f) =>
 		def.kovarCheckIds.some((checkId) => matchesFinding(checkId, f)),
@@ -141,7 +143,7 @@ function evaluateRequirement(
 	let status: ComplianceRequirement["status"];
 	if (matched.length > 0) {
 		status = "fail";
-	} else if (def.kovarCheckIds.length === 0) {
+	} else if (!requirementWasTested(def.kovarCheckIds, ran)) {
 		status = "not-tested";
 	} else {
 		status = "pass";
@@ -161,11 +163,16 @@ function evaluateRequirement(
 
 export function evaluateASVS(
 	findings: SecurityFinding[],
-	options?: { level?: 1 | 2 | 3 },
+	options?: {
+		level?: 1 | 2 | 3;
+		/** Checks that ran (e.g. report.checksRun from audit()). Untested requirements are never "pass". */
+		checksRun?: readonly string[];
+	},
 ): ComplianceReport {
 	const level = options?.level ?? 1;
+	const ran = resolveChecksRun(findings, options?.checksRun);
 	const filtered = ASVS_REQUIREMENTS.filter((r) => r.level <= level);
-	const requirements = filtered.map((def) => evaluateRequirement(def, findings));
+	const requirements = filtered.map((def) => evaluateRequirement(def, findings, ran));
 
 	const passed = requirements.filter((r) => r.status === "pass").length;
 	const failed = requirements.filter((r) => r.status === "fail").length;

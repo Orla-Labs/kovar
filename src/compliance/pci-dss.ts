@@ -1,4 +1,5 @@
 import type { SecurityFinding } from "../types/results.js";
+import { requirementWasTested, resolveChecksRun } from "./coverage.js";
 import type { ComplianceReport, ComplianceRequirement } from "./types.js";
 
 interface PCIDSSRequirementDef {
@@ -74,6 +75,7 @@ function matchesFinding(checkId: string, finding: SecurityFinding): boolean {
 function evaluateRequirement(
 	def: PCIDSSRequirementDef,
 	findings: SecurityFinding[],
+	ran: Set<string>,
 ): ComplianceRequirement {
 	const matched = findings.filter((f) =>
 		def.kovarCheckIds.some((checkId) => matchesFinding(checkId, f)),
@@ -85,13 +87,25 @@ function evaluateRequirement(
 		title: def.title,
 		description: def.description,
 		kovarCheckIds: def.kovarCheckIds,
-		status: matched.length > 0 ? "fail" : def.kovarCheckIds.length === 0 ? "not-tested" : "pass",
+		status:
+			matched.length > 0
+				? "fail"
+				: requirementWasTested(def.kovarCheckIds, ran)
+					? "pass"
+					: "not-tested",
 		findings: matched,
 	};
 }
 
-export function evaluatePCIDSS(findings: SecurityFinding[]): ComplianceReport {
-	const requirements = PCIDSS_REQUIREMENTS.map((def) => evaluateRequirement(def, findings));
+export function evaluatePCIDSS(
+	findings: SecurityFinding[],
+	options?: {
+		/** Checks that ran (e.g. report.checksRun from audit()). Untested requirements are never "pass". */
+		checksRun?: readonly string[];
+	},
+): ComplianceReport {
+	const ran = resolveChecksRun(findings, options?.checksRun);
+	const requirements = PCIDSS_REQUIREMENTS.map((def) => evaluateRequirement(def, findings, ran));
 
 	const passed = requirements.filter((r) => r.status === "pass").length;
 	const failed = requirements.filter((r) => r.status === "fail").length;

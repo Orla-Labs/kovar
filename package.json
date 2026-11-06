@@ -109,7 +109,8 @@
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
 		"prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build",
-		"clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+		"clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+		"test:accuracy": "playwright test -c playwright.accuracy.config.ts"
 	},
 	"peerDependencies": {
 		"@playwright/test": ">=1.40.0",

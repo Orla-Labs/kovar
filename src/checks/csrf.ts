@@ -16,36 +16,150 @@ function shouldSkip(url: string, patterns: string[]): boolean {
 	return patterns.some((p) => url.includes(p));
 }
 
-async function checkMethodWithoutToken(
+// A cross-site attacker page can only send "simple" requests without a CORS
+// preflight: form-urlencoded / multipart / text/plain bodies, and the browser
+// always attaches Origin and Sec-Fetch-Site. Probe exactly that shape, so that
+// JSON-only endpoints and Origin / Fetch-Metadata defenses are judged correctly.
+const ATTACKER_ORIGIN = "https://kovar-csrf-probe.example";
+const LOGIN_LIKE_PATH = /\/(?:log-?in|sign-?in|sign_in|auth|sso|oauth|session)(?:[/?#.]|$)/i;
+
+type ProbeOutcome =
+	| { kind: "accepted"; status: number; via?: string }
+	| { kind: "rejected" }
+	| { kind: "unauthenticated"; status: number; via?: string }
+	| { kind: "error"; message: string };
+
+function classifyRedirect(url: string, status: number, location: string | undefined): ProbeOutcome {
+	if (!location) return { kind: "rejected" };
+	let target: URL;
+	try {
+		target = new URL(location, url);
+	} catch {
+		return { kind: "rejected" };
+	}
+	if (target.origin !== new URL(url).origin || LOGIN_LIKE_PATH.test(target.pathname)) {
+		return { kind: "unauthenticated", status, via: target.href };
+	}
+	// Same-origin, non-login redirect: Post/Redirect/Get after a successful write.
+	return { kind: "accepted", status, via: target.href };
+}
+
+async function probeCrossSiteRequest(
 	request: APIRequestContext,
 	url: string,
 	method: "POST" | "PUT" | "DELETE" | "PATCH",
-): Promise<SecurityFinding | null> {
+): Promise<ProbeOutcome> {
 	try {
 		const response = await request.fetch(url, {
 			method,
 			headers: {
-				"content-type": "application/json",
+				"content-type": "application/x-www-form-urlencoded",
+				origin: ATTACKER_ORIGIN,
+				"sec-fetch-site": "cross-site",
+				"sec-fetch-mode": "navigate",
+				"sec-fetch-dest": "document",
 			},
-			data: "{}",
+			data: "kovar_csrf_probe=1",
+			maxRedirects: 0,
 		});
 		const status = response.status();
-		if (status >= 200 && status < 300) {
-			return {
-				id: "csrf-unprotected-endpoint",
-				category: "access-control",
-				severity: "critical",
-				message: `${method} ${url} returned ${status} without a CSRF token — endpoint accepts state-changing requests without CSRF protection`,
-				remediation:
-					"Implement CSRF protection using synchronizer tokens, double-submit cookies, or SameSite cookie attributes",
-				url,
-				cweId: "CWE-352",
-			};
+		if (status >= 200 && status < 300) return { kind: "accepted", status };
+		if (status >= 300 && status < 400) {
+			return classifyRedirect(url, status, response.headers().location);
+		}
+		if (status === 401) return { kind: "unauthenticated", status };
+		return { kind: "rejected" };
+	} catch (error: unknown) {
+		return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+	}
+}
+
+function unprotectedFinding(
+	url: string,
+	method: string,
+	outcome: { status: number; via?: string },
+): SecurityFinding {
+	const via = outcome.via ? ` (redirected to ${outcome.via})` : "";
+	return {
+		id: "csrf-unprotected-endpoint",
+		category: "access-control",
+		severity: "critical",
+		message: `${method} ${url} returned ${outcome.status}${via} for a cross-site form request with no CSRF token — endpoint accepts state-changing requests without CSRF protection`,
+		remediation:
+			"Implement CSRF protection using synchronizer tokens, double-submit cookies, Origin / Sec-Fetch-Site checks, or SameSite cookie attributes",
+		url,
+		cweId: "CWE-352",
+	};
+}
+
+/**
+ * Plain same-origin GET with the same context, sent BEFORE the probes (a
+ * rejected probe may clear the session cookie). Tells "the context is not
+ * logged in" apart from "the CSRF defence answered with 401 / a login
+ * redirect" (e.g. Rails protect_from_forgery with: :reset_session).
+ */
+async function controlIsAuthenticated(
+	request: APIRequestContext,
+	url: string,
+): Promise<boolean | null> {
+	try {
+		const response = await request.fetch(url, { method: "GET", maxRedirects: 0 });
+		const status = response.status();
+		if (status >= 200 && status < 300) return true;
+		if (status === 401) return false;
+		if (status >= 300 && status < 400) {
+			return classifyRedirect(url, status, response.headers().location).kind !== "unauthenticated";
 		}
 	} catch {
-		// Network errors are not security findings
+		// fall through: inconclusive
 	}
 	return null;
+}
+
+async function checkEndpointMethods(
+	request: APIRequestContext,
+	url: string,
+	methods: readonly ("POST" | "PUT" | "DELETE" | "PATCH")[],
+): Promise<SecurityFinding[]> {
+	const findings: SecurityFinding[] = [];
+	let unauthenticated: { status: number; via?: string } | null = null;
+	const errors: string[] = [];
+	const control = await controlIsAuthenticated(request, url);
+
+	for (const method of methods) {
+		const outcome = await probeCrossSiteRequest(request, url, method);
+		if (outcome.kind === "accepted") findings.push(unprotectedFinding(url, method, outcome));
+		else if (outcome.kind === "unauthenticated" && control !== true) unauthenticated ??= outcome;
+		else if (outcome.kind === "error") errors.push(outcome.message);
+	}
+
+	if (findings.length === 0 && unauthenticated) {
+		const via = unauthenticated.via ? ` (redirected to ${unauthenticated.via})` : "";
+		findings.push({
+			id: "csrf-check-unauthenticated",
+			category: "access-control",
+			severity: "high",
+			message: `${url} answered ${unauthenticated.status}${via}: the request was not authenticated, so CSRF protection could NOT be evaluated`,
+			remediation:
+				"CSRF only matters for requests that carry the victim's session. Pass an authenticated request context (e.g. page.context().request after logging in). If this endpoint authenticates with an Authorization header rather than cookies it is not CSRF-exposed; skip it.",
+			url,
+			cweId: "CWE-352",
+		});
+	}
+
+	if (errors.length === methods.length && methods.length > 0) {
+		findings.push({
+			id: "csrf-check-error",
+			category: "access-control",
+			severity: "high",
+			message: `CSRF could not be checked for ${url}: ${errors[0]}`,
+			remediation:
+				"Kovar could not reach the endpoint, so CSRF protection was NOT verified. Make sure the server is running and the URL is correct.",
+			url,
+		});
+	}
+
+	return findings;
 }
 
 async function checkResponseForCSRFToken(
@@ -129,10 +243,7 @@ export async function checkCSRF(
 	for (const endpoint of endpoints) {
 		if (shouldSkip(endpoint, skip)) continue;
 
-		for (const method of methods) {
-			const finding = await checkMethodWithoutToken(request, endpoint, method);
-			if (finding) findings.push(finding);
-		}
+		findings.push(...(await checkEndpointMethods(request, endpoint, methods)));
 
 		const tokenFinding = await checkResponseForCSRFToken(request, endpoint, tokenHeaders);
 		if (tokenFinding) findings.push(tokenFinding);

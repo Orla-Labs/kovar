@@ -44,6 +44,8 @@ export interface SecurityReport {
 	duration: number;
 	findings: SecurityFinding[];
 	summary: SecuritySummary;
+	/** Check families that actually ran; pass to evaluateASVS / evaluatePCIDSS as `checksRun`. */
+	checksRun?: string[];
 }
 
 export function summarize(findings: SecurityFinding[]): SecuritySummary {

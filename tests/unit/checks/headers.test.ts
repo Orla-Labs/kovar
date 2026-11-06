@@ -133,6 +133,70 @@ describe("analyzeHeaders", () => {
 		expect(csp).toBeUndefined();
 	});
 
+	describe("CSP evaluation edge cases", () => {
+		const cspFinding = (csp: string) =>
+			analyzeHeaders({ ...SECURE_HEADERS, "content-security-policy": csp }).find(
+				(f) => f.id === "header-missing-csp",
+			);
+
+		it.each([
+			["default-src 'self' 'unsafe-inline'"],
+			["frame-ancestors 'none'"],
+			["default-src 'self'; script-src 'self' https: data:"],
+			["default-src 'self'; SCRIPT-SRC 'self' 'unsafe-eval'"],
+			["script-src 'self' https://*.example.com"],
+		])("flags weak policy %s", (csp) => {
+			expect(cspFinding(csp)).toBeDefined();
+		});
+
+		it.each([
+			[
+				"script-src 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=' 'strict-dynamic' 'unsafe-inline' https:; object-src 'none'",
+			],
+			["script-src 'nonce-r4nd' 'strict-dynamic' https: 'unsafe-inline'"],
+			["default-src 'self'; img-src *"],
+			["default-src 'self' 'unsafe-inline', script-src 'self'"],
+		])("accepts strong policy %s", (csp) => {
+			expect(cspFinding(csp)).toBeUndefined();
+		});
+	});
+
+	it("accepts identical repeated X-Frame-Options / X-Content-Type-Options", () => {
+		const findings = analyzeHeaders({
+			...SECURE_HEADERS,
+			"x-frame-options": "DENY, DENY",
+			"x-content-type-options": "nosniff\nnosniff",
+		});
+		expect(findings.filter((f) => f.severity === "high")).toEqual([]);
+	});
+
+	it("still flags conflicting repeated X-Frame-Options", () => {
+		const findings = analyzeHeaders({ ...SECURE_HEADERS, "x-frame-options": "DENY, ALLOWALL" });
+		expect(findings.find((f) => f.id === "header-missing-xfo")).toBeDefined();
+	});
+
+	it("accepts CSP frame-ancestors in place of X-Frame-Options", () => {
+		const { "x-frame-options": _xfo, ...rest } = SECURE_HEADERS;
+		const findings = analyzeHeaders({
+			...rest,
+			"content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+		});
+		expect(findings.find((f) => f.id === "header-missing-xfo")).toBeUndefined();
+	});
+
+	it("parses quoted HSTS max-age", () => {
+		const findings = analyzeHeaders({
+			...SECURE_HEADERS,
+			"strict-transport-security": 'max-age="63072000"; includeSubDomains',
+		});
+		expect(findings.find((f) => f.id === "header-missing-hsts")).toBeUndefined();
+	});
+
+	it("throws on skip/only names that are not header names (e.g. 'HSTS')", () => {
+		expect(() => analyzeHeaders(SECURE_HEADERS, { skip: ["HSTS"] })).toThrow(/Unknown header/);
+		expect(() => analyzeHeaders(SECURE_HEADERS, { only: ["csp"] })).toThrow(/Unknown header/);
+	});
+
 	it("respects skip option", () => {
 		const findings = analyzeHeaders(
 			{},

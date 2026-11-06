@@ -13,9 +13,10 @@ export interface CookieInput {
 }
 
 const DEFAULT_SESSION_PATTERNS = [
-	/\bsess(ion)?/i,
-	/\bauth/i,
-	/\bcsrf/i,
+	/session/i,
+	/(?:^|[^a-z])sess(?:$|[^a-z]|id)/i,
+	/(?:^|[^a-z])auth/i,
+	/[a-z]Auth/,
 	/\bjwt\b/i,
 	/(?:^|[_-])sid(?:$|[_-])/i,
 	/\blogin/i,
@@ -28,7 +29,13 @@ const DEFAULT_SESSION_PATTERNS = [
 
 const MAX_EXPIRY_DAYS = 365;
 
+// CSRF double-submit cookies (Angular XSRF-TOKEN, Django csrftoken, Laravel
+// XSRF-TOKEN, ...) are designed to be read by JavaScript, so they must not be
+// held to session-cookie rules such as HttpOnly.
+const CSRF_COOKIE_PATTERN = /^(?:__Host-|__Secure-)?[a-z]*[_-]?(?:csrf|xsrf)[_-]?(?:token)?$/i;
+
 function isSessionCookie(name: string, patterns: RegExp[]): boolean {
+	if (CSRF_COOKIE_PATTERN.test(name)) return false;
 	return patterns.some((p) => p.test(name));
 }
 
@@ -128,7 +135,9 @@ function checkBroadPath(cookie: CookieInput, isSession: boolean): SecurityFindin
 
 function checkHostPrefix(cookie: CookieInput): SecurityFinding | null {
 	if (!cookie.name.startsWith("__Host-")) return null;
-	const domainSet = cookie.domain !== "" && cookie.domain !== undefined;
+	// Playwright reports host-only cookies with a bare host ("example.com") and
+	// cookies set with a Domain attribute with a leading dot (".example.com").
+	const domainSet = cookie.domain.startsWith(".");
 	if (cookie.secure && cookie.path === "/" && !domainSet) return null;
 	return {
 		id: "cookie-invalid-host-prefix",

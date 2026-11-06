@@ -12,9 +12,11 @@ function finding(overrides: Partial<SecurityFinding> & { id: string }): Security
 	};
 }
 
+const ALL_CHECKS = { checksRun: ["headers", "cookies", "xss"] };
+
 describe("evaluateASVS", () => {
-	it("returns all pass when no findings exist (all requirements have kovarCheckIds)", () => {
-		const report = evaluateASVS([]);
+	it("returns all pass when no findings exist and every check ran", () => {
+		const report = evaluateASVS([], ALL_CHECKS);
 		expect(report.standard).toBe("OWASP ASVS");
 		expect(report.version).toBe("4.0.3");
 		expect(report.summary.failed).toBe(0);
@@ -208,8 +210,8 @@ describe("evaluateASVS", () => {
 		);
 	});
 
-	it("calculates coverage as 100% when all requirements have kovarCheckIds", () => {
-		const report = evaluateASVS([]);
+	it("calculates coverage as 100% when every mapped check ran", () => {
+		const report = evaluateASVS([], ALL_CHECKS);
 		expect(report.summary.coverage).toBe(100);
 	});
 
@@ -234,9 +236,19 @@ describe("evaluateASVS", () => {
 
 	it("unrelated findings do not affect requirement status", () => {
 		const findings = [finding({ id: "header-remove-x-powered-by", severity: "low" })];
-		const report = evaluateASVS(findings);
+		const report = evaluateASVS(findings, ALL_CHECKS);
 		const allPass = report.requirements.every((r) => r.status === "pass");
 		expect(allPass).toBe(true);
+	});
+
+	it("does not report PASS for requirements whose check never ran", () => {
+		// default audit() runs headers + cookies only; XSS must not auto-pass
+		const findings = [finding({ id: "header-missing-hsts", severity: "critical" })];
+		const report = evaluateASVS(findings, { checksRun: ["headers", "cookies"] });
+		expect(report.requirements.find((r) => r.id === "V5.3.3")?.status).toBe("not-tested");
+		expect(report.summary.coverage).toBeLessThan(100);
+		const inferred = evaluateASVS(findings);
+		expect(inferred.requirements.find((r) => r.id === "V5.3.3")?.status).toBe("not-tested");
 	});
 
 	it("summary.notTested reflects count of not-tested requirements", () => {
