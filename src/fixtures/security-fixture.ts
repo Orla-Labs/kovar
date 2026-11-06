@@ -35,7 +35,13 @@ export class SecurityAssertionError extends Error {
 		public readonly url: string,
 	) {
 		const summary = summarizeSeverities(findings);
-		const details = findings.map((f) => `  [${f.severity.toUpperCase()}] ${f.message}`).join("\n");
+		const details = findings
+			.map((f) => {
+				const subject = f.header ?? f.cookie ?? "";
+				const prefix = subject ? `${subject}: ` : "";
+				return `  [${f.severity.toUpperCase()}] ${prefix}${f.message}\n           Fix: ${f.remediation}`;
+			})
+			.join("\n");
 		super(`Security assertion failed (${summary}) at ${url}:\n${details}`);
 		this.name = "SecurityAssertionError";
 	}
@@ -183,6 +189,16 @@ export class SecurityFixture {
 			console.warn(
 				'[kovar] Both "checks" and "includeXSS" provided to audit(). "checks" takes precedence; "includeXSS" is ignored.',
 			);
+		}
+
+		if (explicitChecks) {
+			const known = new Set(this.auditChecks.map((e) => e.name));
+			const unknown = [...explicitChecks].filter((name) => !known.has(name));
+			if (unknown.length > 0) {
+				console.warn(
+					`[kovar] audit() ignored unknown check name(s): ${unknown.join(", ")}. Valid names: ${[...known].join(", ")}.`,
+				);
+			}
 		}
 
 		const allFindings: SecurityFinding[] = [];
