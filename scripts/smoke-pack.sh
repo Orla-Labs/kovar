@@ -14,7 +14,9 @@ trap 'rm -rf "$WORK"' EXIT
 cd "$ROOT"
 TARBALL="$(npm pack --silent --pack-destination "$WORK" | tail -1)"
 echo "packed $TARBALL"
-tar -tzf "$WORK/$TARBALL" | grep -q '^package/dist/ci/index.js$' || {
+# List to a file first: with pipefail, grep -q exiting early makes tar fail on SIGPIPE.
+tar -tzf "$WORK/$TARBALL" > "$WORK/tarball.list"
+grep -q '^package/dist/ci/index.js$' "$WORK/tarball.list" || {
 	echo "FAIL: dist/ci/index.js (GitHub Action entry) missing from tarball"
 	exit 1
 }
