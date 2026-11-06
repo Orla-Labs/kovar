@@ -359,6 +359,29 @@ test.describe("cors", () => {
 // ------------------------------------------------------------------------ fixture could-not-run
 
 test.describe("fixture: checks that could not run must not pass", () => {
+	test("FP check: headers.check() on a logged-in page audits that page, not /login", async ({
+		page,
+		context,
+		request,
+	}) => {
+		await login(page);
+		await page.goto(`${app.url}/good/headers-authenticated`);
+		const fixture = new SecurityFixture(page, context, request);
+		expect(failing(await fixture.headers.check())).toEqual([]);
+	});
+
+	test("silent-skip check: audit() with a misspelled check name throws", async ({
+		page,
+		context,
+		request,
+	}) => {
+		await page.goto(`${app.url}/good/headers`);
+		const fixture = new SecurityFixture(page, context, request);
+		await expect(fixture.audit({ checks: ["header", "cookie"] })).rejects.toThrow(/Unknown audit/);
+		const report = await fixture.audit();
+		expect(report.checksRun).toEqual(["headers", "cookies"]);
+	});
+
 	test("headers.check() before any navigation", async ({ page, context, request }) => {
 		const fixture = new SecurityFixture(page, context, request);
 		expect(failing(await fixture.headers.check())).toEqual(["headers-check-skipped"]);

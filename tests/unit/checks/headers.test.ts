@@ -192,6 +192,11 @@ describe("analyzeHeaders", () => {
 		expect(findings.find((f) => f.id === "header-missing-hsts")).toBeUndefined();
 	});
 
+	it("throws on skip/only names that are not header names (e.g. 'HSTS')", () => {
+		expect(() => analyzeHeaders(SECURE_HEADERS, { skip: ["HSTS"] })).toThrow(/Unknown header/);
+		expect(() => analyzeHeaders(SECURE_HEADERS, { only: ["csp"] })).toThrow(/Unknown header/);
+	});
+
 	it("respects skip option", () => {
 		const findings = analyzeHeaders(
 			{},

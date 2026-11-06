@@ -120,6 +120,7 @@ describe("analyzeCookies", () => {
 			"_myapp_session",
 			"laravel_session",
 			"ci_session",
+			"vercel_session_id",
 			"appSession",
 			"PHPSESSID",
 			"user_sid",

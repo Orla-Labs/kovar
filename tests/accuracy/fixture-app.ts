@@ -314,6 +314,16 @@ document.getElementById('q').addEventListener('input', (e) => {
 			),
 		);
 	},
+	"/good/headers-authenticated": (req, res) => {
+		// Good headers behind login; /login (the redirect target) has none.
+		if (!hasSession(req)) {
+			res.writeHead(302, { Location: "/login" });
+			res.end();
+			return;
+		}
+		res.writeHead(200, { ...GOOD_HEADERS, "Content-Type": "text/html" });
+		res.end(html("<h1>dashboard</h1>"));
+	},
 	"/vuln/xss-dead-form-action": (_q, res) => {
 		res.writeHead(200, { "Content-Type": "text/html" });
 		res.end(

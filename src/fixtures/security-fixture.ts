@@ -202,7 +202,18 @@ export class SecurityFixture {
 			);
 		}
 
+		if (explicitChecks) {
+			const known = new Set(this.auditChecks.map((c) => c.name));
+			const unknown = [...explicitChecks].filter((c) => !known.has(c));
+			if (unknown.length > 0) {
+				throw new Error(
+					`[kovar] Unknown audit check(s): ${unknown.join(", ")}. Valid checks: ${[...known].join(", ")}`,
+				);
+			}
+		}
+
 		const allFindings: SecurityFinding[] = [];
+		const checksRun: string[] = [];
 
 		for (const entry of this.auditChecks) {
 			if (explicitChecks) {
@@ -214,6 +225,7 @@ export class SecurityFixture {
 
 			const findings = await entry.run(options ?? {});
 			allFindings.push(...findings);
+			checksRun.push(entry.name);
 		}
 
 		this.findings.push(...allFindings);
@@ -224,6 +236,7 @@ export class SecurityFixture {
 			duration: Date.now() - start,
 			findings: allFindings,
 			summary: summarize(allFindings),
+			checksRun,
 		};
 	}
 

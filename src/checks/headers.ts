@@ -329,10 +329,22 @@ function validateCSPDirectives(
 	}
 }
 
+function assertKnownHeaderNames(options?: HeaderCheckOptions): void {
+	const known = new Set(HEADER_RULES.map((r) => r.header));
+	const given = [...(options?.skip ?? []), ...(options?.only ?? [])];
+	const unknown = given.filter((h) => !known.has(h.toLowerCase()));
+	if (unknown.length > 0) {
+		throw new Error(
+			`[kovar] Unknown header name(s) in skip/only: ${unknown.join(", ")}. Use header names, e.g. ${[...known].slice(0, 3).join(", ")}`,
+		);
+	}
+}
+
 export function analyzeHeaders(
 	headers: Record<string, string>,
 	options?: HeaderCheckOptions,
 ): SecurityFinding[] {
+	assertKnownHeaderNames(options);
 	const normalized: Record<string, string> = {};
 	for (const [key, value] of Object.entries(headers)) {
 		normalized[key.toLowerCase()] = value;
