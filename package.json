@@ -1,7 +1,7 @@
 {
 	"name": "@orlalabs/kovar",
 	"version": "0.7.0",
-	"description": "Security testing assertions for Playwright",
+	"description": "Security regression tests that live inside your Playwright suite: headers, cookies, CORS, CSRF, auth and reflected XSS.",
 	"license": "Apache-2.0",
 	"type": "module",
 	"engines": {

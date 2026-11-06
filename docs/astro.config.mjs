@@ -6,7 +6,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: "Kovar",
-			description: "Security testing assertions + AI-powered test recording for Playwright",
+			description: "Security regression tests that live inside your Playwright suite.",
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/Orla-Labs/kovar" }],
 			head: [
 				{
