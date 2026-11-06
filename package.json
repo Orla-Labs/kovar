@@ -78,6 +78,16 @@
 				"default": "./dist/mcp/index.cjs"
 			}
 		},
+		"./ci/baseline": {
+			"import": {
+				"types": "./dist/ci/baseline.d.ts",
+				"default": "./dist/ci/baseline.js"
+			},
+			"require": {
+				"types": "./dist/ci/baseline.d.cts",
+				"default": "./dist/ci/baseline.cjs"
+			}
+		},
 		"./package.json": "./package.json"
 	},
 	"main": "./dist/index.cjs",

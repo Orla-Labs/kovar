@@ -7,6 +7,7 @@ export default defineConfig([
 			core: "src/core.ts",
 			"reporter/security-reporter": "src/reporter/security-reporter.ts",
 			"mcp/index": "src/mcp/index.ts",
+			"ci/baseline": "src/ci/baseline.ts",
 		},
 		format: ["esm", "cjs"],
 		dts: true,

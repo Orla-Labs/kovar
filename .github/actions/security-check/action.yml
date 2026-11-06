@@ -1,5 +1,5 @@
 name: "Kovar Security Check"
-description: "Run Kovar header and cookie security checks against a URL and report findings"
+description: "Run Kovar header and cookie security checks against a URL; emit JSON + SARIF, a job summary and a PR comment"
 inputs:
   url:
     description: "URL to check"
@@ -28,6 +28,14 @@ inputs:
     description: "Save current findings as new baseline (true/false)"
     required: false
     default: "false"
+  output-dir:
+    description: "Directory (relative to the workspace) for kovar-report.json and kovar.sarif"
+    required: false
+    default: "kovar-results"
+  framework-package-json:
+    description: "package.json used to pick framework-specific remediation (express, fastify, next, koa, hono)"
+    required: false
+    default: "package.json"
   kovar-package:
     description: "npm spec for Kovar (e.g. @orlalabs/kovar@0.7.0, or a path to a packed .tgz). Default: the version in this action's package.json, so pinning the action ref pins the checks."
     required: false
@@ -43,9 +51,18 @@ outputs:
   findings-count:
     description: "Total number of findings"
     value: ${{ steps.run.outputs.findings-count }}
+  blocking-count:
+    description: "Findings that failed the gate (new at/above fail-on, plus checks that could not run)"
+    value: ${{ steps.run.outputs.blocking-count }}
   passed:
     description: "Whether the check passed (true/false)"
     value: ${{ steps.run.outputs.passed }}
+  json-path:
+    description: "Path to kovar-report.json (findings, gate result, baseline status, remediation suggestions)"
+    value: ${{ steps.run.outputs.json-path }}
+  sarif-path:
+    description: "Path to kovar.sarif (SARIF 2.1.0, for github/codeql-action/upload-sarif)"
+    value: ${{ steps.run.outputs.sarif-path }}
 runs:
   # Composite (not a node20/node24 JavaScript action): the check needs Kovar,
   # @playwright/test and a Chromium build, none of which exist on a bare runner.
@@ -95,4 +112,6 @@ runs:
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
         INPUT_BASELINE_PATH: ${{ inputs.baseline-path }}
         INPUT_UPDATE_BASELINE: ${{ inputs.update-baseline }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_FRAMEWORK_PACKAGE_JSON: ${{ inputs.framework-package-json }}
       run: node "$RUNNER_TEMP/kovar-action/node_modules/@orlalabs/kovar/dist/ci/index.js"

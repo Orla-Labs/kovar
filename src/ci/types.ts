@@ -18,6 +18,8 @@ export interface CICheckResult {
 	passed: boolean;
 	threshold: Severity;
 	diff?: BaselineDiff | undefined;
+	/** Findings that fail the gate (see evaluateGate in report.ts). */
+	blocking?: SecurityFinding[] | undefined;
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = {

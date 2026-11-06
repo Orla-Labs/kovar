@@ -111,6 +111,8 @@ jobs:
       - name: Assert outputs
         run: |
           test "${{ steps.secure.outputs.passed }}" = "true"
+          test -s "${{ steps.secure.outputs.json-path }}"
+          test -s "${{ steps.secure.outputs.sarif-path }}"
           test "${{ steps.insecure.outcome }}" = "failure"
 
   build:

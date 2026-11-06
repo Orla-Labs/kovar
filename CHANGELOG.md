@@ -4,8 +4,13 @@
 
 ### Fixed
 - GitHub Action (`.github/actions/security-check`) now works. It is a composite action that installs `@orlalabs/kovar` and `@playwright/test`, installs Chromium and runs the newly built and shipped `dist/ci/index.js`. Previously the entry was never built or published, crashed on `require` inside ESM, and depended on `playwright-core` without declaring it.
+- With a baseline, the action now fails only on **new** findings; previously `passed` ignored the baseline, so known findings blocked every PR. Findings that report a check could not run (`*-check-error`, `*-check-skipped`, `xss-no-forms`) always block and are never written to a baseline.
 - The action rejects unsupported `checks` values (for example `xss`) instead of silently skipping them and reporting a pass.
 - `@orlalabs/kovar/vite`, `/babel` and `/next` no longer fail with `ERR_MODULE_NOT_FOUND` for `@babel/*` from a clean install: the Babel packages are declared as optional peer dependencies (Babel 7 or 8).
+
+### Added
+- Action writes `kovar-report.json` (findings, gate result, baseline status, framework-specific remediation) and `kovar.sarif` (SARIF 2.1.0) to `output-dir`, exposes `json-path`, `sarif-path` and `blocking-count` outputs, writes the job summary, and updates a single PR comment instead of posting a new one per run.
+- `@orlalabs/kovar/ci/baseline` subpath export (was documented but not exported). `detectFramework` exported from `@orlalabs/kovar/core` (was documented but not exported).
 
 ### Changed
 - **Breaking:** `@modelcontextprotocol/sdk` and `better-sqlite3` moved from `dependencies` to optional `peerDependencies`. Installing Kovar for its assertions now adds 4 packages instead of 134, with no native build. To use `kovar mcp`, `kovar mcp proxy`, `kovar ingest` or `@orlalabs/kovar/mcp`, run `npm install -D @modelcontextprotocol/sdk better-sqlite3`.

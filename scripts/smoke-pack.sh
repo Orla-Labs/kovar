@@ -33,7 +33,7 @@ for heavy in better-sqlite3 @modelcontextprotocol/sdk @babel/parser; do
 	fi
 done
 
-for entry in "" /core /reporter /next; do
+for entry in "" /core /reporter /next /ci/baseline; do
 	node --input-type=module -e "await import('@orlalabs/kovar$entry')"
 	node -e "require('@orlalabs/kovar$entry')"
 	echo "ok  @orlalabs/kovar$entry (esm + cjs)"
