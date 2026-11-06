@@ -6,7 +6,7 @@ description: Auto-fix generated test failures with AI-powered self-healing
 When you pass `--heal`, Kovar runs the generated test immediately after recording. If the test fails, it sends the failure output back to the AI, which rewrites the test code to fix the issue. This loop repeats up to `--heal-attempts` times (default: 3).
 
 :::caution[Generated code runs on your machine]
-`--heal` executes AI-written test code immediately, before you have reviewed it. That code is shaped by the content of the site you recorded. Kovar validates it and runs it in a child process that receives only `PATH`/`HOME`-style variables plus `BASE_URL` and `TEST_*`; your other environment variables (CI secrets, API keys, `NODE_OPTIONS`) are not passed. Validation is defense in depth, not a sandbox: only use `--heal` on sites you trust, and review generated files before committing them.
+`--heal` executes AI-written test code immediately, before you have reviewed it. That code is shaped by the content of the site you recorded. Kovar validates it and runs it in a child process that receives only `PATH`/`HOME`-style variables, proxy settings, `BASE_URL` and `TEST_*`; your other environment variables (CI secrets, API keys, `NODE_OPTIONS`) are not passed. If your `playwright.config` needs more (for example a `webServer` that reads `DATABASE_URL`), list the names in `KOVAR_HEAL_ENV=DATABASE_URL,PORT`. Validation is defense in depth, not a sandbox: only use `--heal` on sites you trust, and review generated files before committing them.
 :::
 
 ## Usage

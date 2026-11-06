@@ -36,6 +36,16 @@ describe("R2 PoC: SelfHealer.runTest child process", () => {
 		expect(opts.env?.PATH).toBe(process.env.PATH);
 	});
 
+	it("passes variables explicitly opted in via KOVAR_HEAL_ENV (never NODE_OPTIONS)", () => {
+		process.env.DATABASE_URL = "postgres://127.0.0.1/test";
+		process.env.NODE_OPTIONS = "--require /tmp/evil.js";
+		process.env.KOVAR_HEAL_ENV = "DATABASE_URL, NODE_OPTIONS";
+		new SelfHealer(new MockLLMProvider(), "/safe/out").runTest("/safe/out/a.spec.ts");
+		const opts = vi.mocked(execFileSync).mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv };
+		expect(opts.env?.DATABASE_URL).toBe("postgres://127.0.0.1/test");
+		expect(opts.env?.NODE_OPTIONS).toBeUndefined();
+	});
+
 	it("runs npx without auto-installing from the registry", () => {
 		new SelfHealer(new MockLLMProvider(), "/safe/out").runTest("/safe/out/a.spec.ts");
 		const args = vi.mocked(execFileSync).mock.calls[0]?.[1] as string[];

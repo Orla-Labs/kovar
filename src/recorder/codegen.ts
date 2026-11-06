@@ -103,7 +103,7 @@ const DANGEROUS_PATTERNS = [
 	/\bXMLHttpRequest\b/,
 	/\bimportScripts\b/,
 	// --- R2 hardening: Node/global escape hatches ---
-	/\bglobal\b/,
+	/\bglobal\s*(?:\.|\?\.|\[|[),;\]}]|$)/m,
 	/\.\s*constructor\b/,
 	/\[\s*['"`]constructor/,
 	/__proto__/,
@@ -114,7 +114,10 @@ const DANGEROUS_PATTERNS = [
 	/\\x[0-9a-fA-F]{2}/,
 	// --- Playwright APIs that read local files, make arbitrary requests or launch processes ---
 	/\bsetInputFiles\b/,
-	/\bpath\s*:/,
+	/\bscreenshot\s*\(\s*\{[^)]*\bpath\b/,
+	/\bpdf\s*\(/,
+	/\btracing\b/,
+	/\bvideo\s*\(/,
 	/\bsaveAs\b/,
 	/\bstorageState\b/,
 	/\baddInitScript\b/,
@@ -123,7 +126,11 @@ const DANGEROUS_PATTERNS = [
 	/\bexposeFunction\b/,
 	/\bexposeBinding\b/,
 	/\brouteFromHAR\b/,
-	/\brequest\b/,
+	// APIRequestContext: page.request / context.request / playwright.request, the
+	// `request` fixture (destructured in the test callback) and direct calls on it.
+	/\.\s*request\b/,
+	/\brequest\s*(?:\?\.|\.)\s*\w+\s*\(/,
+	/\(\s*\{[^}]*\brequest\b[^}]*\}\s*\)\s*=>/,
 	/\blaunchOptions\b/,
 	/\bexecutablePath\b/,
 	/\blaunch(?:Persistent\w*)?\s*\(/,
@@ -150,11 +157,24 @@ function hasDisallowedImports(code: string): boolean {
  */
 const ALLOWED_ENV_VAR = /^(?:BASE_URL|TEST_[A-Z0-9_]+)$/;
 
+// `process` used as a value: followed by a member/call/terminator token, or preceded by
+// an operator / opening bracket / spread / `return`. Prose such as "// Intent: process
+// the payment" or getByText('Checkout process') is not flagged.
+const PROCESS_AS_VALUE_AFTER = /^process\s*(?:[.?[),;}\]]|$)/m;
+const PROCESS_AS_VALUE_BEFORE = /(?:[=(,[{!&|?+]|\.\.\.|\breturn|\bawait|\btypeof)\s*$/;
+
 function hasDisallowedProcessAccess(code: string): boolean {
 	for (const m of code.matchAll(/\bprocess\b/g)) {
-		const rest = code.slice(m.index ?? 0);
+		const idx = m.index ?? 0;
+		const rest = code.slice(idx);
 		const access = rest.match(/^process\.env\.([A-Za-z_$][\w$]*)(?![\w$])/);
-		if (!access || !ALLOWED_ENV_VAR.test(access[1] ?? "")) return true;
+		if (access) {
+			if (!ALLOWED_ENV_VAR.test(access[1] ?? "")) return true;
+			continue;
+		}
+		if (PROCESS_AS_VALUE_AFTER.test(rest) || PROCESS_AS_VALUE_BEFORE.test(code.slice(0, idx))) {
+			return true;
+		}
 	}
 	return false;
 }

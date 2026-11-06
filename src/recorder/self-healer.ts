@@ -9,7 +9,9 @@ import type { LLMProvider } from "./llm/types.js";
  * Environment passed to the generated test. The test is LLM-written code shaped
  * by untrusted page content, so it must not inherit CI secrets, LLM API keys or
  * loader hooks such as NODE_OPTIONS. Only what Playwright needs to start plus the
- * BASE_URL / TEST_* variables generated tests are allowed to read.
+ * BASE_URL / TEST_* variables generated tests are allowed to read. Projects whose
+ * playwright.config (e.g. `webServer`) needs more can opt variables in by name with
+ * KOVAR_HEAL_ENV=VAR1,VAR2 (read from the real environment; .env cannot set it).
  */
 const HEAL_ENV_KEYS = new Set([
 	"PATH",
@@ -38,14 +40,27 @@ const HEAL_ENV_KEYS = new Set([
 	"TERM",
 	"CI",
 	"PLAYWRIGHT_BROWSERS_PATH",
+	"HTTP_PROXY",
+	"HTTPS_PROXY",
+	"NO_PROXY",
+	"http_proxy",
+	"https_proxy",
+	"no_proxy",
+	"NODE_EXTRA_CA_CERTS",
 	"BASE_URL",
 ]);
 
 export function buildHealEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
 	const env: NodeJS.ProcessEnv = {};
+	const optIn = new Set(
+		(source.KOVAR_HEAL_ENV ?? "")
+			.split(",")
+			.map((k) => k.trim())
+			.filter((k) => k && k !== "NODE_OPTIONS"),
+	);
 	for (const [key, value] of Object.entries(source)) {
 		if (value === undefined) continue;
-		if (HEAL_ENV_KEYS.has(key) || /^TEST_[A-Z0-9_]+$/.test(key)) env[key] = value;
+		if (HEAL_ENV_KEYS.has(key) || optIn.has(key) || /^TEST_[A-Z0-9_]+$/.test(key)) env[key] = value;
 	}
 	return env;
 }
@@ -60,8 +75,9 @@ export class SelfHealer {
 
 	async heal(specPath: string, pagePath: string | null): Promise<void> {
 		console.warn(
-			"  ⚠ --heal executes AI-generated test code on this machine. Secrets in your environment are not passed to it,\n" +
-				"    but review the generated files first if the recorded site is not fully trusted.",
+			"  ⚠ --heal executes AI-generated test code on this machine. It only receives PATH/HOME-style variables,\n" +
+				"    proxy settings, BASE_URL and TEST_* (plus any names listed in KOVAR_HEAL_ENV). Review the generated\n" +
+				"    files first if the recorded site is not fully trusted.",
 		);
 		for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
 			console.log(`  ✦ Self-heal: running test (attempt ${attempt}/${this.maxAttempts})...`);
