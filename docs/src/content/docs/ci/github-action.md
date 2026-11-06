@@ -67,7 +67,7 @@ jobs:
 
 - Without a baseline, any finding at or above `fail-on` fails the step.
 - With a baseline (`baseline-path` pointing at an existing file), only findings that are **new** relative to the baseline fail the step. Existing findings are reported but do not block.
-- A finding that says a check **could not run** (IDs ending in `-check-error` or `-check-skipped`, and `xss-no-forms`) always fails the step at or above `fail-on`, and is never written to a baseline. "Not verified" is not an accepted risk.
+- A finding that says a check **could not run** (IDs ending in `-check-error` or `-check-skipped`, plus `xss-no-forms`, `csrf-check-unauthenticated` and `audit-page-closed`) always fails the step at or above `fail-on`, and is never written to a baseline. "Not verified" is not an accepted risk.
 
 ## Machine-readable output
 

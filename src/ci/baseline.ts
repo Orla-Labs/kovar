@@ -21,13 +21,20 @@ export interface BaselineDiff {
 	resolved: BaselineEntry[];
 }
 
+/** Could-not-run IDs that predate the -check-error / -check-skipped convention. */
+const COULD_NOT_RUN_IDS = new Set([
+	"xss-no-forms",
+	"csrf-check-unauthenticated",
+	"audit-page-closed",
+]);
+
 /**
  * A finding that says a check could not run (endpoint unreachable, check
  * skipped, nothing to test). It means "not verified", not "accepted risk", so
  * it is never written to a baseline and never classified as existing.
  */
 export function isCouldNotRun(finding: Pick<SecurityFinding, "id">): boolean {
-	return /-check-(error|skipped)$/.test(finding.id) || finding.id === "xss-no-forms";
+	return /-check-(error|skipped)$/.test(finding.id) || COULD_NOT_RUN_IDS.has(finding.id);
 }
 
 export function loadBaseline(filePath: string): BaselineFile | null {

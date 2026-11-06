@@ -29,6 +29,8 @@ describe("isCouldNotRun", () => {
 			"xss-check-error",
 			"headers-check-skipped",
 			"xss-no-forms",
+			"csrf-check-unauthenticated",
+			"audit-page-closed",
 		]) {
 			expect(isCouldNotRun({ id })).toBe(true);
 		}
