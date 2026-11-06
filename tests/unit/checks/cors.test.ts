@@ -198,12 +198,64 @@ describe("checkCORS", () => {
 		);
 	});
 
-	it("handles network errors gracefully", async () => {
+	it("reports unreachable endpoints as a failing finding instead of passing silently", async () => {
 		const request = {
 			fetch: vi.fn().mockRejectedValue(new Error("Network error")),
 		} as unknown as APIRequestContext;
 		const findings = await checkCORS(request, "https://example.com/api");
-		expect(findings).toHaveLength(0);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.id).toBe("cors-check-error");
+		expect(findings[0]?.severity).toBe("high");
+	});
+
+	it("detects broken allowlists that substring/suffix-match the target host", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation((_url: string, opts: { headers: Record<string, string> }) => {
+				const origin = opts.headers.origin ?? "";
+				const reflect = origin.includes("app.example.com") || origin.endsWith("example.com");
+				return Promise.resolve({
+					status: () => 200,
+					headers: () =>
+						reflect
+							? {
+									"access-control-allow-origin": origin,
+									"access-control-allow-credentials": "true",
+								}
+							: {},
+				});
+			});
+		const request = { fetch: fetchMock } as unknown as APIRequestContext;
+		const findings = await checkCORS(request, "https://app.example.com/api");
+		const reflected = findings.filter((f) => f.id === "cors-reflected-origin");
+		expect(reflected.map((f) => f.severity)).toEqual(["critical", "critical"]);
+	});
+
+	it("detects reflection on the actual request when the preflight has no CORS headers", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation(
+				(_url: string, opts: { method: string; headers: Record<string, string> }) =>
+					Promise.resolve({
+						status: () => (opts.method === "OPTIONS" ? 404 : 200),
+						headers: () =>
+							opts.method === "GET" ? { "access-control-allow-origin": opts.headers.origin } : {},
+					}),
+			);
+		const request = { fetch: fetchMock } as unknown as APIRequestContext;
+		const findings = await checkCORS(request, "https://example.com/api");
+		expect(findings.some((f) => f.id === "cors-reflected-origin")).toBe(true);
+	});
+
+	it("does not probe origins listed in trustedOrigins", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({ status: () => 200, headers: () => ({}) });
+		const request = { fetch: fetchMock } as unknown as APIRequestContext;
+		await checkCORS(request, "https://example.com/api", {
+			dangerousOrigins: ["null", "https://partner.example.org"],
+			trustedOrigins: ["https://partner.example.org"],
+		});
+		const origins = fetchMock.mock.calls.map((c) => c[1].headers.origin);
+		expect(origins).not.toContain("https://partner.example.org");
 	});
 
 	it("normalizes header names to lowercase", async () => {

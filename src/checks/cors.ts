@@ -11,32 +11,49 @@ const DEFAULT_DANGEROUS_ORIGINS = ["null", "http://evil.com"];
 
 const DANGEROUS_METHODS = ["PUT", "DELETE", "PATCH"];
 
+interface CORSResponseHeaders {
+	acao: string | null;
+	acac: string | null;
+	acam: string | null;
+	acah: string | null;
+}
+
 async function sendOriginRequest(
 	request: APIRequestContext,
 	url: string,
 	origin: string,
-): Promise<{ acao: string | null; acac: string | null; acam: string | null; acah: string | null }> {
+	method: "OPTIONS" | "GET",
+): Promise<CORSResponseHeaders> {
+	const headers: Record<string, string> = { origin };
+	if (method === "OPTIONS") headers["access-control-request-method"] = "POST";
+	const response = await request.fetch(url, { method, headers, maxRedirects: 0 });
+	const normalized: Record<string, string> = {};
+	for (const [key, value] of Object.entries(response.headers())) {
+		normalized[key.toLowerCase()] = value;
+	}
+	return {
+		acao: normalized["access-control-allow-origin"] ?? null,
+		acac: normalized["access-control-allow-credentials"] ?? null,
+		acam: normalized["access-control-allow-methods"] ?? null,
+		acah: normalized["access-control-allow-headers"] ?? null,
+	};
+}
+
+/**
+ * Origins that defeat common broken allowlists for the target's own host:
+ * substring/startsWith checks ("app.example.com.attacker.tld") and
+ * endsWith/unanchored-regex checks ("attackerapp.example.com").
+ */
+function deriveBypassOrigins(targetUrl: string): string[] {
 	try {
-		const response = await request.fetch(url, {
-			method: "OPTIONS",
-			headers: {
-				origin,
-				"access-control-request-method": "POST",
-			},
-		});
-		const headers = response.headers();
-		const normalized: Record<string, string> = {};
-		for (const [key, value] of Object.entries(headers)) {
-			normalized[key.toLowerCase()] = value;
-		}
-		return {
-			acao: normalized["access-control-allow-origin"] ?? null,
-			acac: normalized["access-control-allow-credentials"] ?? null,
-			acam: normalized["access-control-allow-methods"] ?? null,
-			acah: normalized["access-control-allow-headers"] ?? null,
-		};
+		const u = new URL(targetUrl);
+		const port = u.port ? `:${u.port}` : "";
+		return [
+			`${u.protocol}//${u.hostname}.kovar-evil.com${port}`,
+			`${u.protocol}//kovarevil${u.hostname}${port}`,
+		];
 	} catch {
-		return { acao: null, acac: null, acam: null, acah: null };
+		return [];
 	}
 }
 
@@ -126,42 +143,83 @@ function checkOverlyPermissiveMethods(acam: string | null, url: string): Securit
 	};
 }
 
+interface ProbeState {
+	checkedWildcard: boolean;
+	checkedPreflight: boolean;
+	attempts: number;
+	errors: string[];
+}
+
+function analyzeProbe(
+	origin: string,
+	method: "OPTIONS" | "GET",
+	res: CORSResponseHeaders,
+	targetUrl: string,
+	state: ProbeState,
+	findings: SecurityFinding[],
+): boolean {
+	const reflected = checkReflectedOrigin(origin, res.acao, res.acac, targetUrl);
+	if (reflected) {
+		findings.push(reflected);
+		return true;
+	}
+	if (!state.checkedWildcard && res.acao !== null) {
+		const wildcard = checkWildcardOrigin(res.acao, res.acac, targetUrl);
+		if (wildcard) findings.push(wildcard);
+		state.checkedWildcard = true;
+	}
+	if (!state.checkedPreflight && method === "OPTIONS") {
+		const methods = checkOverlyPermissiveMethods(res.acam, targetUrl);
+		if (methods) findings.push(methods);
+		const headers = checkAllowHeaders(res.acah, targetUrl);
+		if (headers) findings.push(headers);
+		state.checkedPreflight = true;
+	}
+	return false;
+}
+
 export async function checkCORS(
 	request: APIRequestContext,
 	url: string,
 	options?: CORSCheckOptions,
 ): Promise<SecurityFinding[]> {
 	const targetUrl = options?.url ?? url;
-	const dangerousOrigins = options?.dangerousOrigins ?? DEFAULT_DANGEROUS_ORIGINS;
+	const trusted = new Set(options?.trustedOrigins ?? []);
+	const dangerousOrigins = (
+		options?.dangerousOrigins ?? [...DEFAULT_DANGEROUS_ORIGINS, ...deriveBypassOrigins(targetUrl)]
+	).filter((o) => !trusted.has(o));
 	const findings: SecurityFinding[] = [];
-
-	let checkedWildcard = false;
-	let checkedMethods = false;
-	let checkedHeaders = false;
+	const state: ProbeState = {
+		checkedWildcard: false,
+		checkedPreflight: false,
+		attempts: 0,
+		errors: [],
+	};
 
 	for (const origin of dangerousOrigins) {
-		const { acao, acac, acam, acah } = await sendOriginRequest(request, targetUrl, origin);
-
-		const reflected = checkReflectedOrigin(origin, acao, acac, targetUrl);
-		if (reflected) findings.push(reflected);
-
-		if (!checkedWildcard) {
-			const wildcard = checkWildcardOrigin(acao, acac, targetUrl);
-			if (wildcard) findings.push(wildcard);
-			checkedWildcard = true;
+		// Probe both the preflight and the actual request: many apps only set
+		// CORS headers on one of them (e.g. no OPTIONS handler at all).
+		for (const method of ["OPTIONS", "GET"] as const) {
+			state.attempts++;
+			try {
+				const res = await sendOriginRequest(request, targetUrl, origin, method);
+				if (analyzeProbe(origin, method, res, targetUrl, state, findings)) break;
+			} catch (error: unknown) {
+				state.errors.push(error instanceof Error ? error.message : String(error));
+			}
 		}
+	}
 
-		if (!checkedMethods) {
-			const methods = checkOverlyPermissiveMethods(acam, targetUrl);
-			if (methods) findings.push(methods);
-			checkedMethods = true;
-		}
-
-		if (!checkedHeaders) {
-			const headers = checkAllowHeaders(acah, targetUrl);
-			if (headers) findings.push(headers);
-			checkedHeaders = true;
-		}
+	if (state.attempts > 0 && state.errors.length === state.attempts) {
+		findings.push({
+			id: "cors-check-error",
+			category: "access-control",
+			severity: "high",
+			message: `CORS could not be checked for ${targetUrl}: ${state.errors[0]}`,
+			remediation:
+				"Kovar could not reach the endpoint, so CORS was NOT verified. Make sure the server is running and the URL is correct.",
+			url: targetUrl,
+		});
 	}
 
 	return findings;
