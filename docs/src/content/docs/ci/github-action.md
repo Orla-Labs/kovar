@@ -9,6 +9,8 @@ It is a composite action: it installs `@orlalabs/kovar` and `@playwright/test` i
 
 ## Workflow Example
 
+A complete, working setup (fixture app, PR comment, SARIF in code scanning) lives in [Orla-Labs/kovar-action-example](https://github.com/Orla-Labs/kovar-action-example).
+
 ```yaml
 # .github/workflows/security.yml
 name: Security Check
