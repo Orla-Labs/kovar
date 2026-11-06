@@ -1,6 +1,6 @@
 {
 	"name": "@orlalabs/kovar",
-	"version": "0.7.0-rc.2",
+	"version": "0.7.0",
 	"description": "Security testing assertions for Playwright",
 	"license": "Apache-2.0",
 	"type": "module",

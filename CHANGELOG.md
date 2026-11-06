@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.7.0] - Unreleased
+## [0.7.0] - 2026-11-06
 
 Focus release: correct checks, a working GitHub Action, a 4-package install and docs that match the code. It also fixes a High-severity issue in `kovar record` (see Security).
 
