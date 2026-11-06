@@ -6,7 +6,7 @@ import {
 	validateCode,
 	validateSpecCode,
 	writeGeneratedFiles,
-	writeTestFile,
+	writeRecordingFile,
 } from "./codegen.js";
 import { buildPrompt, sanitizeUrl } from "./llm/prompt.js";
 import type { LLMProvider } from "./llm/types.js";
@@ -105,9 +105,9 @@ export class TestGenerator {
 			return { specPath: files.specPath, pagePath: files.pagePath };
 		} catch (error) {
 			const redacted = redactSessionData(session);
-			const fallbackPath = writeTestFile(
+			const fallbackPath = writeRecordingFile(
 				this.outputDir,
-				`${resolvedName}.recording`,
+				resolvedName,
 				JSON.stringify(redacted, null, 2),
 			);
 			const message = error instanceof Error ? error.message : String(error);

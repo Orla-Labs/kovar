@@ -186,7 +186,7 @@ describe("TestGenerator — integration pipeline", () => {
 
 		// Fallback recording file was written
 		expect(existsSync(result.specPath)).toBe(true);
-		expect(result.specPath).toContain(".recording");
+		expect(result.specPath).toMatch(/\.recording\.json$/);
 
 		// Contains the raw session JSON
 		const content = readFileSync(result.specPath, "utf-8");
@@ -218,7 +218,7 @@ test('x', async ({ page }) => { await page.goto('/'); expect(page).toBeTruthy();
 		const result = await generator.generate(session, "login");
 
 		// Should have fallen back because page object code failed validation (contains eval)
-		expect(result.specPath).toContain(".recording");
+		expect(result.specPath).toMatch(/\.recording\.json$/);
 		expect(result.pagePath).toBeNull();
 	});
 

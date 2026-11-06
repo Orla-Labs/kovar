@@ -88,7 +88,7 @@ describe("TestGenerator", () => {
 		const generator = new TestGenerator(provider, outputDir);
 		const result = await generator.generate(makeSession(), "login");
 
-		expect(result.specPath).toContain(".recording");
+		expect(result.specPath).toMatch(/\.recording\.json$/);
 		expect(result.pagePath).toBeNull();
 		expect(existsSync(result.specPath)).toBe(true);
 
@@ -124,7 +124,7 @@ test('login', async ({ page }) => {
 		const result = await generator.generate(makeSession(), "login");
 
 		// Should fall back to JSON since page object fails validation
-		expect(result.specPath).toContain(".recording");
+		expect(result.specPath).toMatch(/\.recording\.json$/);
 		expect(result.pagePath).toBeNull();
 	});
 });

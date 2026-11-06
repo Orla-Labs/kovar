@@ -52,7 +52,7 @@ npx playwright test login-dashboard.spec.ts
 - **Use `--name`** for meaningful file names. Without it, the name is derived from the URL path (e.g., `/checkout/payment` -> `checkout-payment.spec.ts`).
 - **Use `--source`** for React apps (JSX/TSX only; point it at the project root and install the Babel packages first). The confidence jump from 0.4 (CSS) to 0.97 (source-verified testId) makes a real difference in test stability. See [Codebase Awareness](/recorder/codebase-awareness).
 - **Review generated code** before committing. The AI is good but not perfect -- you may want to adjust assertions or add waits.
-- **If AI generation fails**, Kovar writes the raw session as JSON to `<output>/<name>.recording.spec.ts` (sanitized but rich with URLs, element text, and form field names). It is not a valid test; Playwright will try to load it. Delete it or add `*.recording.spec.ts` to `.gitignore` and to `testIgnore` in your Playwright config.
+- **If AI generation fails**, Kovar writes the raw session as JSON to `<output>/<name>.recording.json` (sanitized but rich with URLs, element text, and form field names). Review it before committing, or add `*.recording.json` to `.gitignore`.
 
 ## Next Steps
 

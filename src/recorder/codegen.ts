@@ -356,6 +356,17 @@ export function writeGeneratedFiles(
 	return result;
 }
 
+/**
+ * Writes the raw (redacted) recording when AI generation fails. It is data, not a test,
+ * so it gets a `.recording.json` extension that Playwright will not try to load.
+ */
+export function writeRecordingFile(outputDir: string, name: string, json: string): string {
+	const filepath = resolveUniquePath(outputDir, name, ".recording.json");
+	ensureDir(filepath);
+	writeFileSync(filepath, `${json}\n`, "utf-8");
+	return filepath;
+}
+
 export function writeTestFile(outputDir: string, name: string, code: string): string {
 	const filepath = resolveUniquePath(outputDir, name, ".spec.ts");
 	ensureDir(filepath);

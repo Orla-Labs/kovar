@@ -71,7 +71,7 @@ The generated code is validated for:
 
 ## Fallback
 
-If AI generation fails (network error, validation failure, malformed output), the recorder saves the raw recording as JSON in `<output>/<name>.recording.spec.ts`, next to your tests. Despite the extension it is not a test; exclude it with `testIgnore` or delete it. You can use this data to:
+If AI generation fails (network error, validation failure, malformed output), the recorder saves the raw recording as JSON in `<output>/<name>.recording.json`, next to your tests. (Before 0.7.0 it was written as `<name>.recording.spec.ts`, which Playwright tried to load as a test.) It is never passed to `--heal`. You can use this data to:
 
 - Retry generation with a different model.
 - Manually write tests using the captured actions and locator metadata.
