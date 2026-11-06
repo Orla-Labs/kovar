@@ -5,6 +5,10 @@ description: Playwright reporter for aggregated security findings and score card
 
 The Kovar reporter is a Playwright reporter that aggregates all security findings from tests using the `security` fixture and prints a score card.
 
+:::note
+Only the `security` fixture feeds the reporter. Tests that use only `expect(...)` matchers (such as the README quick start) attach no findings, so the reporter prints nothing for them.
+:::
+
 ## Setup
 
 Add the reporter to your Playwright config:

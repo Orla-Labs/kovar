@@ -95,9 +95,9 @@ interface SecurityFinding {
   payload?: string;            // for XSS findings
   evidence?: string;           // for XSS findings
   cweId?: string;              // e.g. "CWE-352", "CWE-942"
-  cvssScore?: number;          // CVSS v3.1 base score (0-10)
-  cvssVector?: string;         // CVSS v3.1 vector string
-  references?: string[];       // links to relevant standards or docs
+  cvssScore?: number;          // reserved; not populated in 0.6.0
+  cvssVector?: string;         // reserved; not populated in 0.6.0
+  references?: string[];       // reserved; not populated in 0.6.0
 }
 ```
 

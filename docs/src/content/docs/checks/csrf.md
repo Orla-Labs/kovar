@@ -15,12 +15,18 @@ test("API is protected against CSRF", async ({ request }) => {
 });
 ```
 
+:::caution[Sends real requests]
+This check sends real `POST`, `PUT`, `DELETE` and `PATCH` requests (JSON body `{}`) to the URL. If the endpoint is unprotected, those requests **execute**. Run it against a test environment, never production, and only on endpoints where an empty request is harmless.
+:::
+
 ## What It Checks
 
 The matcher sends state-changing HTTP methods (POST, PUT, DELETE, PATCH) without a CSRF token and checks whether the endpoint accepts them. It also verifies that:
 
-- CSRF tokens are present in response headers or meta tags.
-- Cookies use `SameSite=Strict` or `SameSite=Lax`.
+- CSRF tokens are present in response headers or meta tags (reported as **medium**, so it does not fail the matcher).
+- Cookies use `SameSite=Strict` or `SameSite=Lax` (reported as **medium**).
+
+Only a `2xx` response to a tokenless state-changing request is critical. The request is sent by Playwright's `request` context, which has no browser session, so an endpoint that requires login will usually reject it for that reason alone (a pass), and an endpoint that is public will be reported as a CSRF failure.
 
 CWE mapping: [CWE-352](https://cwe.mitre.org/data/definitions/352.html) (Cross-Site Request Forgery)
 
@@ -31,7 +37,6 @@ await expect(request).toBeCSRFProtected("/api/transfer", {
   endpoints: ["/api/transfer", "/api/settings"],   // check multiple endpoints
   methods: ["POST", "DELETE"],                      // specific methods (default: POST, PUT, DELETE, PATCH)
   tokenHeaders: ["x-csrf-token", "x-xsrf-token"],  // custom token header names
-  tokenCookies: ["csrf_token"],                     // token cookie names
   skip: ["/api/health"],                            // skip URL patterns
 });
 ```
@@ -41,8 +46,9 @@ await expect(request).toBeCSRFProtected("/api/transfer", {
 | `endpoints` | `string[]` | Multiple endpoints to check |
 | `methods` | `string[]` | HTTP methods to test (default: POST, PUT, DELETE, PATCH) |
 | `tokenHeaders` | `string[]` | Custom CSRF token header names |
-| `tokenCookies` | `string[]` | Cookie names that carry CSRF tokens |
-| `skip` | `string[]` | URL patterns to skip |
+| `skip` | `string[]` | Endpoints to skip (substring match) |
+
+A `tokenCookies` option exists in the TypeScript types but has no effect in 0.6.0.
 
 ## Using the Fixture
 

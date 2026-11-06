@@ -15,11 +15,15 @@ test("admin API requires authentication", async ({ request }) => {
 });
 ```
 
+:::caution[Sends real requests]
+By default this sends `GET`, `POST`, `PUT` and `DELETE` without credentials. If the endpoint is in fact unprotected, the `POST`/`PUT`/`DELETE` **execute**. Use a test environment, or pass `methods: ["GET"]`.
+:::
+
 ## What It Checks
 
 The matcher sends requests without credentials and verifies:
 
-- The endpoint returns 401 or 403 instead of 2xx.
+- The endpoint does not return `2xx` (critical). A `3xx` redirect to a login page is reported as info. Any other non-2xx status (401, 403, but also 404 or 500) counts as rejected.
 - Error responses don't contain sensitive keywords (password, secret, api_key, token, private_key, credit_card, ssn, social_security).
 
 CWE mappings:
@@ -33,7 +37,6 @@ CWE mappings:
 await expect(request).toRequireAuthentication("/api/admin/users", {
   endpoints: ["/api/admin/users", "/api/admin/settings"],  // check multiple endpoints
   methods: ["GET", "POST", "PUT", "DELETE"],               // HTTP methods to test (default: GET, POST, PUT, DELETE)
-  expectedStatus: 401,                                      // expected rejection status
 });
 ```
 
@@ -41,7 +44,9 @@ await expect(request).toRequireAuthentication("/api/admin/users", {
 |--------|------|-------------|
 | `endpoints` | `string[]` | Multiple endpoints to check |
 | `methods` | `string[]` | HTTP methods to test (default: GET, POST, PUT, DELETE) |
-| `expectedStatus` | `number` | Expected rejection status code |
+
+
+An `expectedStatus` option exists in the TypeScript types but has no effect in 0.6.0.
 
 ## Using the Fixture
 
@@ -51,7 +56,7 @@ import { test, expect } from "@orlalabs/kovar";
 test("auth audit", async ({ page, security }) => {
   await page.goto("/dashboard");
 
-  // Throws on critical/high findings:
+  // Throws on critical/high findings (tests the current page URL):
   await security.auth.assert();
 
   // Or inspect findings:

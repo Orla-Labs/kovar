@@ -51,7 +51,7 @@ const report = await security.audit({
 
 ## Specifying Checks
 
-By default, the audit runs headers and cookies. CSRF, CORS, auth, and accessibility are opt-in. Use the `checks` option to specify exactly which checks to run:
+By default, the audit runs headers and cookies. CSRF, CORS, auth, and accessibility are opt-in. Use the `checks` option to specify exactly which checks to run. Note that `csrf` and `auth` send real state-changing requests to the page URL (see [CSRF](/checks/csrf)):
 
 ```typescript
 const report = await security.audit({
@@ -67,7 +67,7 @@ const report = await security.audit({
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `checks` | `string[]` | Which checks to run (default: `["headers", "cookies"]`) |
+| `checks` | `string[]` | Which checks to run (default: `["headers", "cookies"]`). Valid names: `headers`, `cookies`, `xss`, `csrf`, `cors`, `auth`, `accessibility`. Unknown names are ignored with a console warning, so a typo runs nothing and the audit passes. |
 | `includeXSS` | `boolean` | Include XSS testing (default: `false`) |
 | `headers` | `object` | Options passed to headers check |
 | `cookies` | `object` | Options passed to cookies check |

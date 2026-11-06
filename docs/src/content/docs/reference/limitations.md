@@ -28,6 +28,7 @@ Kovar is a **security regression testing** tool, not a comprehensive security sc
 - Business logic flaws
 - TLS/SSL configuration
 - Forms inside iframes or Shadow DOM
+- Inputs that are not inside a `<form>` (typical SPA search boxes)
 
 ## XSS Detection Specifics
 

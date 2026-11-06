@@ -49,7 +49,11 @@ await expect(page).toBeResilientToXSS({
 | `skipPayloads` | `string[]` | Payload IDs to skip |
 | `apiFirst` | `boolean` | Use API-first injection (default: `true`) |
 | `delayBetweenPayloads` | `number` | Delay in ms between payload submissions (default: `0`) |
-| `concurrency` | `number` | Max parallel payload tests (default: `1`, serial) |
+| `concurrency` | `number` | Max parallel payload tests (default: `1`, serial). API-first mode only; DOM mode is always serial |
+
+## What It Needs From Your Page
+
+The scanner discovers `<form>` elements (or the element matched by `selector`). Inputs that are not inside a `<form>` -- common in SPAs that handle input with JavaScript -- are not tested. When no form is found, the matcher fails with `[INFO] No forms found on the page to test for XSS`; check that the page has finished rendering and that `selector` is correct. Inside `security.audit()` and `security.xss.assert()` that info finding does **not** fail the test, so a page with no forms passes silently there.
 
 ## API-First vs DOM Testing
 

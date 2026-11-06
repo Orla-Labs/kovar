@@ -36,9 +36,22 @@ test("session cookies are secure after login", async ({ page, context }) => {
 
 ## Session Cookie Detection
 
-Session cookies are detected by name patterns: `sess`, `token`, `auth`, `csrf`, `jwt`, `sid`, `login`, `PHPSESSID`, `JSESSIONID`, `ASPSESSIONID`, `connect.sid`.
+Session cookies are detected by these case-insensitive name patterns (regular expressions):
 
-You can extend this list with the `sessionCookiePatterns` option.
+| Pattern | Matches | Does not match |
+|---------|---------|----------------|
+| `\bsess(ion)?` | `session`, `next-auth.session-token`, `PHPSESSID` | `vercel_session_id`, `laravel_session`, `_app_session` (underscore before `sess`) |
+| `\bauth`, `\bcsrf`, `\blogin` | `auth_token`, `csrf`, `login_state` | `myauth` |
+| `\bjwt\b` | `jwt`, `jwt.v2` | `jwt_token` |
+| `(^\|[_-])sid($\|[_-])` | `sid`, `user-sid` | `sidebar` |
+| `[_-]token$` | `access_token`, `sb-access-token` | `token`, `accessToken` |
+| exact | `PHPSESSID`, `JSESSIONID`, `ASPSESSIONID*`, `connect.sid` | |
+
+If your session cookie is not matched, it is checked with the weaker non-session rules (missing `Secure` is only **medium**, missing `HttpOnly` is not reported). Add your cookie name with `sessionCookiePatterns`.
+
+```typescript
+await expect(context).toHaveSecureCookies({ sessionCookiePatterns: [/^vercel_session_id$/, /_session$/] });
+```
 
 ## Options
 
