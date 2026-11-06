@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { Browser } from "@playwright/test";
 import type { SourceMetadata } from "../source/types.js";
 import { ActionCapture } from "./action-capture.js";
@@ -228,7 +228,20 @@ export class RecordingSession {
 			if (!action) continue;
 			if (action.element?.kovarFile && action.element.kovarLine && action.element.kovarCol) {
 				actionsWithKovarData++;
-				const filePath = join(sourceDir, action.element.kovarFile);
+				// kovarFile comes from a DOM attribute, i.e. from the recorded page:
+				// confine it to the source directory and to JS/TS sources.
+				const root = resolve(sourceDir);
+				const filePath = resolve(root, action.element.kovarFile);
+				const rel = relative(root, filePath);
+				if (
+					!rel ||
+					rel.startsWith("..") ||
+					isAbsolute(rel) ||
+					isAbsolute(action.element.kovarFile) ||
+					!/\.(?:[cm]?[jt]sx?)$/.test(filePath)
+				) {
+					continue;
+				}
 				const meta = await lazyParseSourceLocation(
 					filePath,
 					Number.parseInt(action.element.kovarLine, 10),
@@ -267,7 +280,7 @@ export class RecordingSession {
 		const generator = new TestGenerator(provider, this.config.outputDir);
 		const result = await generator.generate(sessionData, this.config.testName, sourceMap);
 
-		if (this.config.heal) {
+		if (this.config.heal && !result.fallback) {
 			const healer = new SelfHealer(provider, this.config.outputDir, this.config.healAttempts);
 			await healer.heal(result.specPath, result.pagePath);
 		}
