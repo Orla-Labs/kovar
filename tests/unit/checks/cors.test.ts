@@ -231,6 +231,28 @@ describe("checkCORS", () => {
 		expect(reflected.map((f) => f.severity)).toEqual(["critical", "critical"]);
 	});
 
+	it("does not flag a deliberate *.example.com subdomain allowlist", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation((_url: string, opts: { headers: Record<string, string> }) => {
+				const origin = opts.headers.origin ?? "";
+				const reflect = /^https:\/\/[\w-]+\.example\.com$/.test(origin);
+				return Promise.resolve({
+					status: () => 200,
+					headers: () =>
+						reflect
+							? {
+									"access-control-allow-origin": origin,
+									"access-control-allow-credentials": "true",
+								}
+							: {},
+				});
+			});
+		const request = { fetch: fetchMock } as unknown as APIRequestContext;
+		const findings = await checkCORS(request, "https://api.example.com/x");
+		expect(findings.filter((f) => f.severity === "critical")).toEqual([]);
+	});
+
 	it("detects reflection on the actual request when the preflight has no CORS headers", async () => {
 		const fetchMock = vi
 			.fn()

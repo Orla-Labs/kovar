@@ -41,16 +41,20 @@ async function sendOriginRequest(
 
 /**
  * Origins that defeat common broken allowlists for the target's own host:
- * substring/startsWith checks ("app.example.com.attacker.tld") and
- * endsWith/unanchored-regex checks ("attackerapp.example.com").
+ * substring/startsWith checks ("app.example.com.kovar-evil.com") and
+ * endsWith/unanchored-regex checks ("kovarevilexample.com"). The endsWith
+ * probe prefixes the registrable domain (last two labels), so it is never a
+ * subdomain of the app's own site and a deliberate *.example.com allowlist
+ * is not flagged.
  */
 function deriveBypassOrigins(targetUrl: string): string[] {
 	try {
 		const u = new URL(targetUrl);
 		const port = u.port ? `:${u.port}` : "";
+		const site = u.hostname.split(".").slice(-2).join(".");
 		return [
 			`${u.protocol}//${u.hostname}.kovar-evil.com${port}`,
-			`${u.protocol}//kovarevil${u.hostname}${port}`,
+			`${u.protocol}//kovarevil${site}${port}`,
 		];
 	} catch {
 		return [];
