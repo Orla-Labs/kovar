@@ -1,4 +1,5 @@
 import type { SourceMetadata } from "../../source/types.js";
+import { isRecorderAssertionCode } from "../assertion-grammar.js";
 import { generateLocator } from "../locator-generator.js";
 import type {
 	AssertionSuggestion,
@@ -15,13 +16,33 @@ function sanitizePromptText(text: string | null | undefined, maxLen = 100): stri
 	if (!text) return "";
 	return text
 		.replace(/```/g, "")
-		.replace(/\n/g, " ")
+		.replace(/[\r\n\u2028\u2029\t]/g, " ")
 		.replace(/["']/g, "")
 		.replace(/[<>{}\\]/g, "")
 		.replace(PROMPT_INJECTION_MARKERS, "")
 		.replace(/ {2,}/g, " ")
 		.trim()
 		.slice(0, maxLen);
+}
+
+/**
+ * Collapse a page-derived code-like string (e.g. a generated locator) onto one
+ * line so it cannot open new prompt sections, without stripping quotes/braces.
+ */
+function oneLine(text: string | null | undefined, maxLen = 300): string {
+	if (!text) return "";
+	return text
+		.replace(/```/g, "")
+		.replace(/[\r\n\u2028\u2029\t]+/g, " ")
+		.slice(0, maxLen);
+}
+
+/** Tag/role/type tokens: keep only identifier-ish characters. */
+function token(text: string | null | undefined): string {
+	if (!text) return "";
+	return String(text)
+		.replace(/[^A-Za-z0-9_-]/g, "")
+		.slice(0, 40);
 }
 
 export function sanitizeCodeForPrompt(code: string | null | undefined, maxLen: number): string {
@@ -61,13 +82,18 @@ function hasAssertionDangerousPatterns(code: string): boolean {
 	return ASSERTION_DANGEROUS_PATTERNS.some((pattern) => pattern.test(code));
 }
 
-function sanitizeUrl(url: string): string {
+/**
+ * Reduce a URL to origin + path (+ hash-route path). Query strings and hash
+ * parameters routinely carry OAuth codes, magic-link and reset tokens, so they
+ * are never sent to the LLM vendor or written to recordings.
+ */
+export function sanitizeUrl(url: string): string {
 	try {
 		const parsed = new URL(url);
-		const hashPath = parsed.hash.startsWith("#/") ? parsed.hash : "";
-		return `${parsed.origin}${parsed.pathname}${hashPath}`;
+		const hashPath = parsed.hash.startsWith("#/") ? (parsed.hash.split(/[?&]/)[0] ?? "") : "";
+		return oneLine(`${parsed.origin}${parsed.pathname}${hashPath}`, 500);
 	} catch {
-		return url.split(/[?]/)[0] ?? url;
+		return oneLine(url.split(/[?#]/)[0] ?? "", 500);
 	}
 }
 
@@ -134,6 +160,8 @@ When you see [EMAIL], [PASSWORD], [PHONE], [REDACTED], [CARD], [TOKEN]:
 - Page objects: accept as method parameters
 - Spec files: read from process.env
 - NEVER hardcode masked values
+- ONLY read process.env.BASE_URL and process.env.TEST_* variables (e.g. TEST_EMAIL, TEST_PASSWORD, TEST_API_TOKEN). Any other environment variable is rejected.
+- ONLY import from '@playwright/test' and './pages/*'. Do not use page.request, setInputFiles, or any option that takes a file path.
 
 ## Example Output
 
@@ -214,17 +242,17 @@ function formatDOMContext(ctx: DOMContext): string {
 	const parts: string[] = [];
 
 	if (ctx.landmark) {
-		parts.push(`Landmark: ${ctx.landmark}`);
+		parts.push(`Landmark: ${token(ctx.landmark)}`);
 	}
 
 	if (ctx.ancestors.length > 0) {
 		const chain = ctx.ancestors
 			.map((a) => {
-				const attrs: string[] = [a.tagName];
-				if (a.role) attrs.push(`role="${a.role}"`);
-				if (a.ariaLabel) attrs.push(`label="${a.ariaLabel}"`);
-				if (a.testId) attrs.push(`testid="${a.testId}"`);
-				if (a.landmark) attrs.push(`landmark=${a.landmark}`);
+				const attrs: string[] = [token(a.tagName)];
+				if (a.role) attrs.push(`role="${token(a.role)}"`);
+				if (a.ariaLabel) attrs.push(`label="${sanitizePromptText(a.ariaLabel, 60)}"`);
+				if (a.testId) attrs.push(`testid="${sanitizePromptText(a.testId, 60)}"`);
+				if (a.landmark) attrs.push(`landmark=${token(a.landmark)}`);
 				return `<${attrs.join(" ")}>`;
 			})
 			.join(" > ");
@@ -234,16 +262,16 @@ function formatDOMContext(ctx: DOMContext): string {
 	if (ctx.formContext) {
 		const fields = ctx.formContext.fields
 			.map((f) => {
-				const desc: string[] = [f.tagName];
-				if (f.type) desc.push(`type=${f.type}`);
-				if (f.ariaLabel) desc.push(`"${f.ariaLabel}"`);
-				else if (f.placeholder) desc.push(`placeholder="${f.placeholder}"`);
-				else if (f.name) desc.push(`name=${f.name}`);
+				const desc: string[] = [token(f.tagName)];
+				if (f.type) desc.push(`type=${token(f.type)}`);
+				if (f.ariaLabel) desc.push(`"${sanitizePromptText(f.ariaLabel, 60)}"`);
+				else if (f.placeholder) desc.push(`placeholder="${sanitizePromptText(f.placeholder, 60)}"`);
+				else if (f.name) desc.push(`name=${sanitizePromptText(f.name, 60)}`);
 				return desc.join(" ");
 			})
 			.join(", ");
 		parts.push(
-			`Form: ${ctx.formContext.method?.toUpperCase() || "GET"} ${ctx.formContext.action || "?"} [${ctx.formContext.fieldCount} fields: ${fields}]`,
+			`Form: ${token(ctx.formContext.method).toUpperCase() || "GET"} ${ctx.formContext.action ? sanitizeUrl(ctx.formContext.action) : "?"} [${Number(ctx.formContext.fieldCount) || 0} fields: ${fields}]`,
 		);
 	}
 
@@ -252,7 +280,7 @@ function formatDOMContext(ctx: DOMContext): string {
 			.slice(0, 5)
 			.map((s) => {
 				const marker = s.isCurrent ? "→" : " ";
-				return `${marker}<${s.tagName}${s.role ? ` role="${s.role}"` : ""}>${s.text ? ` "${sanitizePromptText(s.text, 30)}"` : ""}`;
+				return `${marker}<${token(s.tagName)}${s.role ? ` role="${token(s.role)}"` : ""}>${s.text ? ` "${sanitizePromptText(s.text, 30)}"` : ""}`;
 			})
 			.join(", ");
 		parts.push(`Siblings: [${sibDescs}]`);
@@ -265,7 +293,7 @@ function formatPageDelta(delta: PageDelta): string {
 	const parts: string[] = [];
 
 	if (delta.urlChanged && delta.newUrl) {
-		parts.push(`URL → ${delta.newUrl}`);
+		parts.push(`URL → ${sanitizeUrl(delta.newUrl)}`);
 	}
 	if (delta.addedText.length > 0) {
 		parts.push(
@@ -287,7 +315,7 @@ function formatPageDelta(delta: PageDelta): string {
 		parts.push(
 			`+Elements: ${delta.addedElements
 				.slice(0, 3)
-				.map((e) => `<${e.tagName}${e.role ? ` role="${e.role}"` : ""}>`)
+				.map((e) => `<${token(e.tagName)}${e.role ? ` role="${token(e.role)}"` : ""}>`)
 				.join(", ")}`,
 		);
 	}
@@ -295,7 +323,7 @@ function formatPageDelta(delta: PageDelta): string {
 		parts.push(
 			`-Elements: ${delta.removedElements
 				.slice(0, 2)
-				.map((e) => `<${e.tagName}>`)
+				.map((e) => `<${token(e.tagName)}>`)
 				.join(", ")}`,
 		);
 	}
@@ -304,7 +332,7 @@ function formatPageDelta(delta: PageDelta): string {
 }
 
 function formatNavigationAction(action: RecordedAction, index: number): string {
-	let line = `${index + 1}. [${action.type}] Navigated to: ${action.url ? sanitizeUrl(action.url) : "unknown"}`;
+	let line = `${index + 1}. [${token(action.type)}] Navigated to: ${action.url ? sanitizeUrl(action.url) : "unknown"}`;
 	if (action.delta) {
 		const deltaStr = formatPageDelta(action.delta);
 		if (deltaStr) line += `\n${deltaStr}`;
@@ -317,37 +345,47 @@ function formatElementAction(
 	index: number,
 	sourceMetadata?: SourceMetadata | null,
 ): string {
-	const parts = [`${index + 1}. [${action.type}]`];
+	const parts = [`${index + 1}. [${token(action.type)}]`];
 
 	if (sourceMetadata) {
 		parts.push(
-			`Component: ${sourceMetadata.componentName} (${sourceMetadata.filePath}:${sourceMetadata.line})`,
+			`Component: ${sanitizePromptText(sourceMetadata.componentName, 80)} (${sanitizePromptText(sourceMetadata.filePath, 200)}:${Number(sourceMetadata.line) || 0})`,
 		);
-		if (sourceMetadata.testId) parts.push(`Source testId: "${sourceMetadata.testId}"`);
-		if (sourceMetadata.ariaLabel) parts.push(`Source aria-label: "${sourceMetadata.ariaLabel}"`);
+		if (sourceMetadata.testId)
+			parts.push(`Source testId: "${sanitizePromptText(sourceMetadata.testId, 80)}"`);
+		if (sourceMetadata.ariaLabel)
+			parts.push(`Source aria-label: "${sanitizePromptText(sourceMetadata.ariaLabel, 80)}"`);
 		if (sourceMetadata.eventHandlers.length > 0) {
-			parts.push(`Handlers: ${sourceMetadata.eventHandlers.join(", ")}`);
+			parts.push(
+				`Handlers: ${sourceMetadata.eventHandlers.map((h) => sanitizePromptText(h, 40)).join(", ")}`,
+			);
 		}
 	}
 
 	if (action.element) {
 		const strategy = generateLocator(action.element, sourceMetadata);
-		parts.push(`Element: <${action.element.tagName}>`);
+		parts.push(`Element: <${token(action.element.tagName)}>`);
 		if (action.element.nearbyHeading)
 			parts.push(`Section: "${sanitizePromptText(action.element.nearbyHeading, 80)}"`);
 		if (action.element.text) parts.push(`Text: "${sanitizePromptText(action.element.text, 80)}"`);
-		parts.push(`Suggested locator: ${strategy.primary}`);
+		parts.push(`Suggested locator: ${oneLine(strategy.primary)}`);
 		if (strategy.fallbacks.length > 0) {
-			parts.push(`Fallbacks: ${strategy.fallbacks.slice(0, 2).join(" | ")}`);
+			parts.push(
+				`Fallbacks: ${strategy.fallbacks
+					.slice(0, 2)
+					.map((f) => oneLine(f))
+					.join(" | ")}`,
+			);
 		}
 		if (strategy.concerns.length > 0) {
-			parts.push(`\u26A0 ${strategy.concerns.join("; ")}`);
+			parts.push(`\u26A0 ${strategy.concerns.map((c) => oneLine(c, 120)).join("; ")}`);
 		}
 		parts.push(`Confidence: ${strategy.confidence}`);
 	}
 
-	if (action.value !== undefined) parts.push(`Value: "${action.value}"`);
-	if (action.key) parts.push(`Key: ${action.key}`);
+	if (action.value !== undefined)
+		parts.push(`Value: "${sanitizePromptText(String(action.value), 120)}"`);
+	if (action.key) parts.push(`Key: ${sanitizePromptText(String(action.key), 30)}`);
 
 	let line = parts.join(" | ");
 
@@ -441,13 +479,13 @@ function inferPageClassName(url: string): string {
 }
 
 function formatRequest(req: RecordedRequest): string {
-	let line = `${req.method} ${sanitizeUrl(req.url)} \u2192 ${req.responseStatus}`;
+	let line = `${token(req.method)} ${sanitizeUrl(req.url)} \u2192 ${Number(req.responseStatus) || 0}`;
 	if (req.requestPostData) {
 		const truncated =
 			req.requestPostData.length > 200
 				? `${req.requestPostData.substring(0, 200)}...`
 				: req.requestPostData;
-		line += `\n   Body: ${truncated}`;
+		line += `\n   Body: ${oneLine(truncated, 210)}`;
 	}
 	if (req.responseBody) {
 		const truncated =
@@ -546,15 +584,15 @@ function formatAssertions(assertions: AssertionSuggestion[] | undefined): string
 		lineNum++;
 		const sanitizedDesc = sanitizePromptText(a.description, 100);
 		const code = a.playwrightCode;
-		if (hasAssertionDangerousPatterns(code)) {
+		if (!isRecorderAssertionCode(code) || hasAssertionDangerousPatterns(code)) {
 			lines.push(
-				`${lineNum}. [${a.type}] (after action #${a.afterActionIndex}) (assertion skipped: contained suspicious patterns)`,
+				`${lineNum}. [${token(a.type)}] (after action #${Number(a.afterActionIndex) || 0}) (assertion skipped: contained suspicious patterns)`,
 			);
 			continue;
 		}
 		const sanitizedCode = sanitizeCodeForPrompt(code, 500);
 		lines.push(
-			`${lineNum}. [${a.type}] (after action #${a.afterActionIndex}) ${sanitizedDesc}\n   Code: ${sanitizedCode}`,
+			`${lineNum}. [${token(a.type)}] (after action #${Number(a.afterActionIndex) || 0}) ${sanitizedDesc}\n   Code: ${sanitizedCode}`,
 		);
 	}
 
@@ -617,7 +655,7 @@ ${assertionsText}
 
 ### Final Page State
 URL: ${sanitizeUrl(session.finalUrl)}
-Title: ${session.pageTitle}
+Title: ${sanitizePromptText(session.pageTitle, 120)}
 
 ### Instructions
 Generate a Page Object Model test for this user flow.
@@ -630,7 +668,7 @@ Output TWO code blocks:
 1. \`\`\`typescript:pages \u2014 Page object classes (one class per page/section)
 2. \`\`\`typescript:spec \u2014 Test spec that uses the page objects
 
-Use process.env.TEST_EMAIL, process.env.TEST_PASSWORD etc. for any credentials.
+Use process.env.TEST_EMAIL, process.env.TEST_PASSWORD etc. for any credentials (only BASE_URL and TEST_* variables are allowed).
 Add "// Intent: ..." comments in the spec file to group logical actions.
 End with appropriate expect() assertions.`;
 
