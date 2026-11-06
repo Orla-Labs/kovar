@@ -19,7 +19,7 @@ jobs:
   # The OIDC token (id-token: write) can publish to npm, so this job runs no
   # third-party actions and no dependency install scripts.
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [ci]
     permissions:
       contents: read
@@ -61,7 +61,7 @@ jobs:
           DIST_TAG: ${{ steps.version.outputs.dist-tag }}
 
   github-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [publish]
     permissions:
       contents: write
