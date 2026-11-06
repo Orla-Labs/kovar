@@ -18,6 +18,7 @@ import type {
 	XSSCheckOptions,
 } from "../types/index.js";
 import { summarize } from "../types/results.js";
+import { warnDeprecated } from "../utils/deprecation.js";
 
 function summarizeSeverities(findings: SecurityFinding[]): string {
 	const counts: Record<string, number> = {};
@@ -111,7 +112,10 @@ export class SecurityFixture {
 		this.csrf = new CheckFacade(this, (opts) => checkCSRF(this.pageRequest, this.page.url(), opts));
 		this.cors = new CheckFacade(this, (opts) => checkCORS(this.request, this.page.url(), opts));
 		this.auth = new CheckFacade(this, (opts) => checkAuth(this.request, this.page.url(), opts));
-		this.accessibility = new CheckFacade(this, (opts) => checkAccessibility(this.page, opts));
+		this.accessibility = new CheckFacade(this, (opts) => {
+			warnDeprecated("KOVAR_DEP_A11Y");
+			return checkAccessibility(this.page, opts);
+		});
 
 		this.registerAuditCheck({
 			name: "headers",
@@ -143,7 +147,10 @@ export class SecurityFixture {
 		});
 		this.registerAuditCheck({
 			name: "accessibility",
-			run: (opts) => checkAccessibility(this.page, opts.accessibility),
+			run: (opts) => {
+				warnDeprecated("KOVAR_DEP_A11Y");
+				return checkAccessibility(this.page, opts.accessibility);
+			},
 			optIn: true,
 		});
 	}

@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { RecordingSession } from "./recorder/index.js";
+import { warnDeprecated } from "./utils/deprecation.js";
 import { loadEnvFile } from "./utils/env-file.js";
 
 function parseCliArgs() {
@@ -129,6 +130,9 @@ async function executeCommand(
 	positionals: string[],
 	values: CliValues,
 ): Promise<void> {
+	if (command === "mcp" || command === "ingest") warnDeprecated("KOVAR_DEP_MCP");
+	if (command === "record") warnDeprecated("KOVAR_DEP_RECORDER");
+
 	if (command === "mcp") {
 		if (positionals[1] === "proxy") {
 			await runMcpProxy(positionals, values);

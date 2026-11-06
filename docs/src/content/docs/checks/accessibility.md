@@ -3,6 +3,10 @@ title: Accessibility
 description: Test pages for common accessibility issues with toBeAccessible
 ---
 
+:::caution[Deprecated in 0.7.0, removed in 0.8]
+`toBeAccessible()`, `security.accessibility` and `checkAccessibility()` are deprecated and print a `DeprecationWarning`. Use [`@axe-core/playwright`](https://playwright.dev/docs/accessibility-testing), which runs the full axe-core rule set.
+:::
+
 The `toBeAccessible()` matcher tests the page for common accessibility issues based on WCAG 2.1 guidelines. Pass a Playwright `Page`. The checker evaluates the live DOM, so it catches issues that static analysis tools miss -- dynamically rendered content, SPA state, and computed styles.
 
 ## Basic Usage

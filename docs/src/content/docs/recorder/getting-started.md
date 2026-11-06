@@ -3,6 +3,10 @@ title: Recorder Getting Started
 description: Record browser sessions and generate Page Object Model tests with AI
 ---
 
+:::caution[Deprecated in 0.7.0, removed in 0.8]
+`kovar record` (including `--heal`) is deprecated. 0.7.0 ships its security fixes and prints a `DeprecationWarning`; 0.8 removes it. Playwright's own `npx playwright codegen` and test agents cover this use case.
+:::
+
 The Kovar recorder opens a Chromium browser, captures your interactions, and uses AI to generate Page Object Model tests with resilient locators and environment-driven credentials.
 
 ## Prerequisites

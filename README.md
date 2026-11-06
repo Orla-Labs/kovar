@@ -33,7 +33,7 @@ Expect the first run to be red: the matcher fails on critical/high findings and 
 - **[CSRF Protection](https://kovar.orlalabs.com/checks/csrf)** -- verifies state-changing endpoints reject tokenless requests
 - **[CORS Configuration](https://kovar.orlalabs.com/checks/cors)** -- tests for origin reflection and wildcard misconfigurations
 - **[Authentication](https://kovar.orlalabs.com/checks/auth)** -- verifies protected endpoints reject unauthenticated requests
-- **[Accessibility](https://kovar.orlalabs.com/checks/accessibility)** -- 10 WCAG 2.1 rules covering images, forms, landmarks, headings
+- **[Accessibility](https://kovar.orlalabs.com/checks/accessibility)** -- *deprecated in 0.7, removed in 0.8; use [`@axe-core/playwright`](https://playwright.dev/docs/accessibility-testing)*
 
 ### Fixtures & API
 
@@ -51,13 +51,17 @@ Expect the first run to be red: the matcher fails on critical/high findings and 
 - **[Reporter](https://kovar.orlalabs.com/ci/reporter)** -- Playwright reporter with security score cards (counts findings from the `security` fixture)
 - **[GitHub Action](https://kovar.orlalabs.com/ci/github-action)** and **[Baseline Tracking](https://kovar.orlalabs.com/ci/baseline)** -- not usable in 0.6.0 (the action is not published and the baseline API is not exported)
 
-### AI Recorder
+### AI Recorder (deprecated)
+
+*Deprecated in 0.7.0 (security fixes only), removed in 0.8.*
 
 - **[Record browser sessions](https://kovar.orlalabs.com/recorder/getting-started)** -- capture interactions and generate Page Object Model tests
 - **[Self-Healing](https://kovar.orlalabs.com/recorder/self-healing)** -- auto-fix test failures after recording
 - **[Codebase Awareness](https://kovar.orlalabs.com/recorder/codebase-awareness)** -- source-verified locators for React apps (requires installing `@babel/*` packages manually in 0.6.0)
 
-### MCP Server
+### MCP Server (deprecated)
+
+*Deprecated in 0.7.0, removed in 0.8: the MCP server is moving to Orla Labs Caliper.*
 
 Local-first MCP server for recording, asserting, and replaying agent runs. Runs go to `~/.kovar/runs.db` (no cloud, no auth — override with `KOVAR_DB_PATH`). 15 tools: recording (`record_run`, `append_events`), assertions (`assert_tool_called`, `assert_tool_order`, `assert_no_loops`, `assert_cost_under`, `assert_token_budget_per_step`, `assert_latency_under`, `assert_messages_match`, `assert_no_drift`), canonicals (`record_canonical`), replay and diff (`replay_run`, `diff_runs`), and inspection (`get_run`, `list_runs`). See the [MCP docs](https://kovar.orlalabs.com/mcp/introduction/).
 

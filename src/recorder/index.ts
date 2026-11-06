@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { Browser } from "@playwright/test";
 import type { SourceMetadata } from "../source/types.js";
+import { warnDeprecated } from "../utils/deprecation.js";
 import { ActionCapture } from "./action-capture.js";
 import { AssertionDetector } from "./assertion-detector.js";
 import { createLLMProvider } from "./llm/index.js";
@@ -50,7 +51,9 @@ export class RecordingSession {
 	> &
 		RecorderConfig;
 
+	/** @deprecated The recorder is removed in Kovar 0.8. */
 	constructor(config: RecorderConfig) {
+		warnDeprecated("KOVAR_DEP_RECORDER");
 		this.config = {
 			captureNetwork: true,
 			maskPasswords: true,
