@@ -60,14 +60,7 @@ interface RemediationReport {
 
 ## Framework Default
 
-If you omit the `framework` option, it defaults to `"generic"`. If you want auto-detection based on your `package.json` dependencies, you can use the standalone `detectFramework()` utility and pass the result:
-
-```typescript
-import { detectFramework, generateRemediation } from "@orlalabs/kovar/core";
-
-const framework = detectFramework(); // reads package.json, returns best match
-const remediation = generateRemediation(findings, { framework, language: "typescript" });
-```
+If you omit the `framework` option, it defaults to `"generic"`. Pass the framework your app uses explicitly. (A `detectFramework()` helper exists in the source but is not exported in 0.6.0.)
 
 ## Related
 

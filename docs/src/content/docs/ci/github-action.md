@@ -3,9 +3,44 @@ title: GitHub Action
 description: Run Kovar security checks in CI and post findings as PR comments
 ---
 
-Kovar ships a GitHub Action that runs security checks and posts findings as PR comments.
+:::danger[Not usable in 0.6.0]
+The action described on this page does not work for external repositories yet:
 
-## Workflow Example
+- `uses: ./.github/actions/security-check` refers to a path inside **your** repository, which does not exist there. The action lives in the Kovar repository.
+- The action runs `dist/ci/index.js`, which is not built or published in 0.6.0, so referencing it from the Kovar repository fails too.
+- The `checks` input only supports `headers` and `cookies`; other values are silently ignored.
+- With `baseline-path`, existing findings are labelled in the comment but **still fail** the job if they meet `fail-on`.
+
+Until this is fixed, the reliable CI path is to run your Kovar Playwright tests with `npx playwright test` in your normal workflow (see [Running Kovar tests in CI](#running-kovar-tests-in-ci) below).
+:::
+
+The planned GitHub Action loads a single URL in Chromium, checks its headers and cookies, and posts findings as a PR comment. It does not run your Playwright suite.
+
+## Running Kovar Tests in CI
+
+Kovar tests are ordinary Playwright tests, so the CI setup is the same as for any Playwright suite:
+
+```yaml
+# .github/workflows/e2e.yml
+name: E2E
+on: [pull_request]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+```
+
+A failing security matcher fails the job like any other assertion. Add the [Reporter](/ci/reporter) for a score card in the log.
+
+## Planned Action: Workflow Example
 
 ```yaml
 # .github/workflows/security.yml
@@ -121,4 +156,4 @@ You can use the outputs in subsequent steps:
 
 - [Baseline Tracking](/ci/baseline/) -- track security baselines across PRs.
 - [Reporter](/ci/reporter/) -- Playwright reporter for local and CI test runs.
-- [Full Audit](/api/audit/) -- the audit that powers the GitHub Action.
+- [Full Audit](/api/audit/) -- the in-test audit (the action uses its own headers/cookies scan, not `security.audit()`).

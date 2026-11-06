@@ -5,6 +5,13 @@ description: Map security findings against OWASP ASVS 4.0.3 requirements
 
 Kovar maps your security findings against the OWASP Application Security Verification Standard (ASVS) 4.0.3. This lets you track compliance progress and generate compliance reports.
 
+:::caution[Read before relying on this report]
+- **"pass" means "no matching finding", not "verified".** A requirement is marked `pass` whenever the findings you pass in contain nothing for it -- including when the relevant check never ran. For example, the default `security.audit()` runs only headers and cookies, so the XSS requirement shows `pass` without a single payload being sent, and the summary still reports `Not tested: 0` and `Coverage: 100%`. Only evaluate findings from checks you actually ran, and read `pass` accordingly.
+- **Some requirement IDs are mis-mapped in 0.6.0.** Checked against the ASVS 4.0.3 text: `V14.4.4` is X-Content-Type-Options and `V14.4.5` is HSTS (Kovar has them swapped with other topics); `V14.4.1` is Content-Type/charset, `V14.4.2` is `Content-Disposition` on API responses, `V14.5.1` is HTTP method allow-listing, and `V3.4.5` is the session cookie `Path` attribute -- none of which Kovar checks, though it reports them under those IDs. `V14.4.3`, `V14.4.6`, `V14.4.7`, `V3.4.1`-`V3.4.4` and `V5.3.3` map correctly.
+- ASVS 5.0 has since been released with a different numbering; these IDs are ASVS 4.0.3 only.
+- This is evidence for an assessor, not an attestation of compliance.
+:::
+
 ## Basic Usage
 
 ```typescript
@@ -40,7 +47,7 @@ Example markdown output:
 ```markdown
 # OWASP ASVS 4.0.3 Compliance Report
 
-**Date:** 2026-03-26
+**Date:** 2026-11-06
 **Level:** 1
 
 ## Summary
@@ -53,7 +60,7 @@ Example markdown output:
 ## Failed Requirements
 
 ### V14.4.1 -- HTTP Security Headers [FAIL]
-- [CRITICAL] Missing Strict-Transport-Security header
+- [CRITICAL] HSTS header is missing
 ```
 
 ## Integration with Audit

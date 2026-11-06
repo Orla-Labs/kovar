@@ -5,15 +5,23 @@ description: Track security baselines and diff findings across PRs
 
 Baseline tracking compares current security findings against a saved baseline, so you can distinguish new regressions from known issues and track improvements over time.
 
+:::danger[Not usable in 0.6.0]
+- The baseline functions are **not exported** from the package: `import ... from "@orlalabs/kovar/ci/baseline"` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+- The [GitHub Action](/ci/github-action/) that uses them is not published (see that page).
+- In the action, existing findings are shown as "existing" in the comment but still fail the job if they meet `fail-on`.
+- `update-baseline: true` writes the file in the CI runner's workspace and never commits it, so the next run will not see it unless you commit or cache it yourself.
+- Findings are matched by `id` only (e.g. `header-missing-csp`), not by URL.
+:::
+
 ## How It Works
 
 1. Run security checks and save the findings as a baseline JSON file.
 2. On subsequent runs, load the baseline and diff against current findings.
-3. New findings are flagged as regressions; resolved findings are flagged as improvements; existing findings are shown but don't block.
+3. New findings are flagged as regressions; resolved findings are flagged as improvements; existing findings are shown separately (in 0.6.0 they still count toward the action's pass/fail).
 
 ## Baseline API
 
-The baseline functions are exported from `src/ci/baseline.ts`:
+The baseline functions live in `src/ci/baseline.ts` (not yet exported -- the import below does not work in 0.6.0):
 
 ```typescript
 import {

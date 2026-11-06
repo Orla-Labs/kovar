@@ -3,7 +3,13 @@ title: PCI-DSS
 description: Map security findings against PCI-DSS 4.0 requirements
 ---
 
-Kovar maps your security findings against PCI-DSS 4.0 requirements related to web application security.
+Kovar maps your security findings against PCI-DSS requirement IDs related to web application security.
+
+:::caution[Read before relying on this report]
+- **"pass" means "no matching finding", not "verified".** A requirement is marked `pass` whenever the findings you pass in contain nothing for it -- including when the relevant check never ran. For example, the default `security.audit()` runs only headers and cookies, so the XSS requirement shows `pass` without a single payload being sent, and the summary still reports `Not tested: 0` and `Coverage: 100%`. Only evaluate findings from checks you actually ran, and read `pass` accordingly.
+- **Requirement numbering needs review.** `6.5.4` (mapped to XSS) and `6.5.10` (mapped to session cookies) follow the numbering of the retired PCI DSS 3.2.1 list of common vulnerabilities, not PCI DSS 4.0/4.0.1, where section 6.5 covers change management. Mapping CSP to `6.4.2` (an automated web-attack detection/prevention solution such as a WAF) is also a stretch. Treat these IDs as hints.
+- This is evidence for an assessor, not an attestation of compliance.
+:::
 
 ## Basic Usage
 
@@ -17,7 +23,7 @@ console.log(text);
 
 ## Requirements Covered
 
-PCI-DSS evaluation covers 6 requirements related to:
+PCI-DSS evaluation lists 6 requirement IDs (`6.2.4`, `6.4.1`, `6.4.2`, `4.2.1`, `6.5.4`, `6.5.10`) related to:
 
 - XSS prevention
 - HTTP security headers

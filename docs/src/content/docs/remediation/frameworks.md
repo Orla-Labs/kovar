@@ -85,23 +85,7 @@ const remediation = generateRemediation(findings, {
 
 ## Framework Detection
 
-If you omit the `framework` option, it defaults to `"generic"`. To auto-detect based on your `package.json` dependencies, use the standalone `detectFramework()` utility:
-
-```typescript
-import { detectFramework, generateRemediation } from "@orlalabs/kovar/core";
-
-const framework = detectFramework(); // reads package.json, returns best match
-const remediation = generateRemediation(findings, { framework, language: "typescript" });
-```
-
-The detection priority order is:
-
-1. Next.js
-2. Hono
-3. Fastify
-4. Koa
-5. Express
-6. Generic (fallback)
+If you omit the `framework` option, it defaults to `"generic"`. A `detectFramework()` helper exists in the source but is not exported from `@orlalabs/kovar/core` in 0.6.0, so pass the framework explicitly.
 
 ## Related
 
