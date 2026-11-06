@@ -44,7 +44,7 @@ export interface SecurityReport {
 	duration: number;
 	findings: SecurityFinding[];
 	summary: SecuritySummary;
-	/** Check families that actually ran; pass to evaluateASVS / evaluatePCIDSS as `checksRun`. */
+	/** Check families that actually ran. A family absent here was not tested. */
 	checksRun?: string[];
 }
 

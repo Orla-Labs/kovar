@@ -70,4 +70,3 @@ test("accessibility with warnings", async ({ page, security }) => {
 
 - [Full Audit](/api/audit) -- include accessibility in a comprehensive audit with `checks: ["accessibility"]`.
 - [Standalone API](/api/standalone) -- use `checkAccessibility()` outside Playwright.
-- [OWASP ASVS](/compliance/owasp-asvs) -- accessibility findings can be mapped to compliance requirements.

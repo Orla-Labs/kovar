@@ -70,14 +70,6 @@ import { generateRemediation } from "@orlalabs/kovar/core";
 
 See [Auto-Remediation](/remediation/overview) for usage.
 
-### Compliance Evaluation
-
-```typescript
-import { evaluateASVS, evaluatePCIDSS, formatComplianceReport } from "@orlalabs/kovar/core";
-```
-
-See [OWASP ASVS](/compliance/owasp-asvs) and [PCI-DSS](/compliance/pci-dss) for usage.
-
 ## Finding Shape
 
 Every check function returns `SecurityFinding[]`. Each finding has a consistent shape:

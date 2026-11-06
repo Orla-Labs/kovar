@@ -8,7 +8,4 @@ export { checkAccessibility } from "./checks/accessibility.js";
 export { XSS_POLYGLOTS } from "./payloads/index.js";
 export { generateRemediation } from "./remediation/index.js";
 export { detectFramework } from "./remediation/frameworks.js";
-export { evaluateASVS } from "./compliance/owasp-asvs.js";
-export { evaluatePCIDSS } from "./compliance/pci-dss.js";
-export { formatComplianceReport } from "./compliance/report.js";
 export type * from "./types/index.js";

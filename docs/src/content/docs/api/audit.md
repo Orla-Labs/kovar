@@ -85,4 +85,3 @@ All findings from the audit are automatically attached as JSON to the Playwright
 
 - [Security Fixture](/api/fixture) -- for individual check categories.
 - [Reporter](/ci/reporter) -- aggregate audit results across test runs.
-- [Compliance Testing](/compliance/owasp-asvs) -- map audit findings to OWASP ASVS or PCI-DSS.

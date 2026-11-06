@@ -41,10 +41,9 @@ Expect the first run to be red: the matcher fails on critical/high findings and 
 - **[Full Audit](https://kovar.orlalabs.com/api/audit)** -- run all checks at once and get a structured report
 - **[Standalone API](https://kovar.orlalabs.com/api/standalone)** -- use check functions outside the Playwright test runner
 
-### Remediation & Compliance
+### Remediation
 
 - **[Auto-Remediation](https://kovar.orlalabs.com/remediation/overview)** -- framework-specific fix suggestions (Express, Fastify, Next.js, Koa, Hono)
-- **[OWASP ASVS](https://kovar.orlalabs.com/compliance/owasp-asvs)** / **[PCI-DSS](https://kovar.orlalabs.com/compliance/pci-dss)** -- map findings to requirement IDs (experimental; read the caveats: a requirement shows "pass" when no finding matches, even if the check did not run)
 
 ### CI/CD
 
