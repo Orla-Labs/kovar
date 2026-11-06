@@ -36,7 +36,7 @@ The native format. One JSON object per line. Empty lines and lines starting with
 ```text
 { "type": "run",   "run_id"?: string, "agent_id"?: string, "started_at"?: int,
   "ended_at"?: int|null, "status"?: "running"|"completed"|"failed", "metadata"?: object }
-  (zero or one allowed; run_id and agent_id on this line are ignored in 0.6.0 --
+  (zero or one allowed; run_id and agent_id on this line are ignored (0.6.0 and 0.7.0) --
    the run id always comes from --run-id or the filename, the agent id from --agent-id or "ingest")
 
 { "type": "event", "tool_name": string, "args"?: object, "result"?: any,
@@ -91,7 +91,7 @@ The Claude Code session format is undocumented. This adapter targets the format 
 
 ## Defaults
 
-- kovar takes `agent_id` from `--agent-id` (or `ingest`) and `run_id` from `--run-id` (or the filename minus extension). In 0.6.0 this applies even when the file has a `run` line with its own `run_id`/`agent_id`.
+- kovar takes `agent_id` from `--agent-id` (or `ingest`) and `run_id` from `--run-id` (or the filename minus extension). This applies even when the file has a `run` line with its own `run_id`/`agent_id`.
 - Ingesting the same file twice fails with a raw `UNIQUE constraint failed: runs.id`; pass a different `--run-id`.
 - `started_at` and `ended_at` default to the first/last event or message timestamp; if there are none, they default to `Date.now()`.
 - The run is always created in one transaction with its events; messages are appended after.

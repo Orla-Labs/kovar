@@ -5,8 +5,11 @@ description: Programmatic access to security checks with assert and check modes
 
 The `security` fixture gives programmatic access to all security checks. It's injected automatically when you import from `@orlalabs/kovar`.
 
-:::caution
-The fixture's checks do not reuse the page's own response. `security.headers` re-requests `page.url()`, and `csrf`/`cors`/`auth` send requests to `page.url()`, all through Playwright's `request` context, which does **not** share the browser's cookies. On a page behind login, `security.headers` can end up checking the login page you get redirected to. For authenticated pages, use `expect(response).toHaveSecureHeaders()` on the navigation response.
+:::note[Which requests carry your login]
+- `security.headers`, `security.xss` and `security.csrf` use the page's own cookie jar (`page.context().request`), so on a page behind login they test that page. `security.headers` re-requests `page.url()` rather than reusing the navigation response; to check exactly the response the browser got, use `expect(response).toHaveSecureHeaders()`.
+- `security.auth` probes from an isolated context with **no** cookies or credentials, by design.
+- `security.cors` uses the test's `request` fixture.
+- A check that could not run reports a high finding (for example `headers-check-skipped` before any navigation, `audit-page-closed` on a closed page) instead of passing.
 :::
 
 ## Two Modes

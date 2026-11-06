@@ -54,7 +54,7 @@ await expect(response).toHaveSecureHeaders({
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `skip` | `string[]` | Header names to skip (full header names, case-insensitive, e.g. `"strict-transport-security"`; in 0.6.0 abbreviations like `"HSTS"` are silently ignored) |
+| `skip` | `string[]` | Header names to skip (full header names, case-insensitive, e.g. `"strict-transport-security"`). An unknown name such as `"HSTS"` throws and lists the valid names |
 | `only` | `string[]` | Check only these headers (same naming rule as `skip`) |
 | `requiredCSPDirectives` | `string[]` | CSP directives that must be present |
 | `minHSTSMaxAge` | `number` | Minimum HSTS max-age in seconds (default: 31536000) |

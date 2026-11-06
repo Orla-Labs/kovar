@@ -59,8 +59,8 @@ test("user can log in", async ({ page, context }) => {
 });
 ```
 
-:::caution
-Prefer the matchers on the real navigation `response` for pages behind login. The `security.headers` fixture re-requests `page.url()` with Playwright's separate `request` context, which does **not** share the browser's login cookies, so on an authenticated page it can end up checking the login page you were redirected to instead.
+:::note
+The matchers above check the exact navigation `response` the browser received. The `security` fixture (`security.headers.assert()`) re-requests `page.url()` with the page's cookies, so it also works behind login, but it checks a fresh response rather than the one the browser got.
 :::
 
 ## Dedicated Security Test File

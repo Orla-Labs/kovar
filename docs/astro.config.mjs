@@ -108,7 +108,7 @@ export default defineConfig({
 					label: "Reference",
 					items: [
 						{ label: "SecurityFinding", slug: "reference/types" },
-						{ label: "Limitations", slug: "reference/limitations" },
+						{ label: "What Kovar Does Not Catch", slug: "reference/limitations" },
 					],
 				},
 			],

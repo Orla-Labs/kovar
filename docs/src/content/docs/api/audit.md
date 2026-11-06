@@ -36,6 +36,21 @@ The audit returns a `SecurityReport` object:
 
 See [SecurityFinding](/reference/types) for the full type definition.
 
+## Checks That Could Not Run
+
+A check that could not verify anything reports a **high** finding instead of passing, so `audit()` and `.assert()` fail:
+
+| Finding ID | Meaning |
+|---|---|
+| `audit-page-closed` | `audit()` was called on a closed page |
+| `headers-check-skipped` | no page loaded yet (`about:blank`) |
+| `xss-no-forms` | no `<form>` found to test (check `selector` and that the page has rendered) |
+| `xss-check-error` | every payload request failed |
+| `csrf-check-unauthenticated` | the request context is not logged in, so CSRF cannot be evaluated |
+| `csrf-check-error`, `cors-check-error`, `auth-check-error` | the endpoint could not be reached |
+
+`report.checksRun` lists the check families that actually ran. In the [GitHub Action](/ci/github-action) these findings always block and are never written to a baseline.
+
 ## Including XSS Testing
 
 XSS testing is opt-in because it's slower than other checks:
@@ -67,7 +82,7 @@ const report = await security.audit({
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `checks` | `string[]` | Which checks to run (default: `["headers", "cookies"]`). Valid names: `headers`, `cookies`, `xss`, `csrf`, `cors`, `auth`, `accessibility`. In 0.6.0, unknown names are silently ignored, so a typo runs nothing and the audit passes. Double-check the spelling. |
+| `checks` | `string[]` | Which checks to run (default: `["headers", "cookies"]`). Valid names: `headers`, `cookies`, `xss`, `csrf`, `cors`, `auth`, `accessibility`. An unknown name throws and lists the valid names. |
 | `includeXSS` | `boolean` | Include XSS testing (default: `false`) |
 | `headers` | `object` | Options passed to headers check |
 | `cookies` | `object` | Options passed to cookies check |

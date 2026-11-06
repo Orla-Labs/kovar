@@ -11,8 +11,8 @@ kovar record https://your-app.com --source .
 
 Point `--source` at the **project root** (the directory your dev server runs from), not at `./src`: the injected file paths are relative to the dev server's working directory (e.g. `src/components/Button.tsx`), and `--source ./src` would look for `src/src/...` and silently fall back to DOM-only locators.
 
-:::caution[Extra install step in 0.6.0]
-The Vite/Babel plugins and `--source` parsing need Babel packages that are not installed with `@orlalabs/kovar` in 0.6.0. Without them you get `Cannot find package '@babel/generator'` (plugins) or a "Failed to parse source location" warning per action (recorder). Install them yourself:
+:::note[Install the Babel peers]
+The Vite/Babel plugins and `--source` parsing need the `@babel/*` packages, which are optional peer dependencies (Babel 7 or 8) since 0.7.0. Without them you get `Cannot find package '@babel/generator'` (plugins) or a "Failed to parse source location" warning per action (recorder). Install them:
 
 ```bash
 npm install -D @babel/parser @babel/traverse @babel/generator @babel/types
