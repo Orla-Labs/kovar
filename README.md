@@ -61,14 +61,14 @@ test("login page has secure headers", async ({ page }) => {
 
 Local-first MCP server for recording, asserting, and replaying agent runs. Runs go to `~/.kovar/runs.db` (no cloud, no auth — override with `KOVAR_DB_PATH`). Tools exposed: `record_run`, `assert_tool_called`, `assert_no_drift`, `assert_cost_under`, `replay_run`, `record_canonical`, `get_run`, `list_runs`.
 
-Add to your MCP client config (Claude Code: `~/.claude.json` or project `.mcp.json`):
+The MCP server's dependencies (`@modelcontextprotocol/sdk`, `better-sqlite3`) are optional peers, so installing Kovar for its assertions stays lean. To use the server, install them alongside Kovar (`npm i -D @orlalabs/kovar @modelcontextprotocol/sdk better-sqlite3`) or let `npx` fetch them. Add to your MCP client config (Claude Code: `~/.claude.json` or project `.mcp.json`):
 
 ```json
 {
   "mcpServers": {
     "kovar": {
       "command": "npx",
-      "args": ["-y", "@orlalabs/kovar", "mcp"]
+      "args": ["-y", "-p", "@orlalabs/kovar", "-p", "@modelcontextprotocol/sdk", "-p", "better-sqlite3", "kovar", "mcp"]
     }
   }
 }
