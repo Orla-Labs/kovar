@@ -174,6 +174,17 @@ async function executeCommand(
 		process.exit(1);
 	}
 
+	// OpenAI has no default model; fail before recording rather than after.
+	const usesOpenAI =
+		values.provider === "openai" ||
+		(!values.provider && !process.env.ANTHROPIC_API_KEY && !!process.env.OPENAI_API_KEY);
+	if (usesOpenAI && !values.model) {
+		console.error(
+			"Error: the OpenAI provider has no default model.\n  Pass --model with a current OpenAI model ID.\n",
+		);
+		process.exit(1);
+	}
+
 	const session = new RecordingSession({
 		url,
 		outputDir: (values.output as string) ?? "./tests",
@@ -222,7 +233,7 @@ function printUsage() {
     -n, --name          Test file name (default: auto-generated from URL)
     -s, --source        Source directory for codebase-aware locator generation
     --provider          LLM provider: anthropic or openai (default: auto-detect from env)
-    --model             LLM model (default: claude-sonnet-4-20250514 or gpt-4o)
+    --model             LLM model (Anthropic default: claude-sonnet-5-5; required for OpenAI)
     --heal              Run generated test and auto-fix failures (up to 3 attempts).
                         Executes AI-generated code: asks before each run, or pass --yes
     -y, --yes           With --heal: run without asking (required when stdin is not a TTY)
@@ -235,7 +246,7 @@ function printUsage() {
 
   Environment:
     ANTHROPIC_API_KEY   API key for Claude
-    OPENAI_API_KEY      API key for GPT-4o
+    OPENAI_API_KEY      API key for OpenAI (requires --model)
     KOVAR_DB_PATH       Override SQLite path for the MCP server
 
   Examples:
