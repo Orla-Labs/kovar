@@ -10,7 +10,7 @@ npm install -D @orlalabs/kovar
 
 ## Quick Start
 
-Replace your Playwright import with Kovar -- everything else stays the same:
+Replace your Playwright import with Kovar -- everything else stays the same. (The relative URL below needs `use: { baseURL: "http://localhost:3000" }` in your `playwright.config.ts`.)
 
 ```typescript
 import { test, expect } from "@orlalabs/kovar"; // was: '@playwright/test'
@@ -20,6 +20,8 @@ test("login page has secure headers", async ({ page }) => {
   await expect(response!).toHaveSecureHeaders();
 });
 ```
+
+Expect the first run to be red: the matcher fails on critical/high findings and prints a `Fix:` line for each. On plain `http://localhost`, add `{ skip: ["strict-transport-security"] }` (HSTS only applies over HTTPS). See the [Quick Start](https://kovar.orlalabs.com/getting-started/quick-start) for how to adopt it on an app with known gaps.
 
 ## Features
 
@@ -42,24 +44,23 @@ test("login page has secure headers", async ({ page }) => {
 ### Remediation & Compliance
 
 - **[Auto-Remediation](https://kovar.orlalabs.com/remediation/overview)** -- framework-specific fix suggestions (Express, Fastify, Next.js, Koa, Hono)
-- **[OWASP ASVS](https://kovar.orlalabs.com/compliance/owasp-asvs)** -- map findings to ASVS 4.0.3 requirements
-- **[PCI-DSS](https://kovar.orlalabs.com/compliance/pci-dss)** -- map findings to PCI-DSS 4.0 requirements
+- **[OWASP ASVS](https://kovar.orlalabs.com/compliance/owasp-asvs)** / **[PCI-DSS](https://kovar.orlalabs.com/compliance/pci-dss)** -- map findings to requirement IDs (experimental; read the caveats: a requirement shows "pass" when no finding matches, even if the check did not run)
 
 ### CI/CD
 
-- **[GitHub Action](https://kovar.orlalabs.com/ci/github-action)** -- run security checks in CI with PR comments
-- **[Baseline Tracking](https://kovar.orlalabs.com/ci/baseline)** -- detect regressions across PRs
-- **[Reporter](https://kovar.orlalabs.com/ci/reporter)** -- Playwright reporter with security score cards
+- **Run in CI** -- Kovar tests are Playwright tests: `npx playwright test` in your existing workflow fails the PR on a regression
+- **[Reporter](https://kovar.orlalabs.com/ci/reporter)** -- Playwright reporter with security score cards (counts findings from the `security` fixture)
+- **[GitHub Action](https://kovar.orlalabs.com/ci/github-action)** and **[Baseline Tracking](https://kovar.orlalabs.com/ci/baseline)** -- not usable in 0.6.0 (the action is not published and the baseline API is not exported)
 
 ### AI Recorder
 
 - **[Record browser sessions](https://kovar.orlalabs.com/recorder/getting-started)** -- capture interactions and generate Page Object Model tests
 - **[Self-Healing](https://kovar.orlalabs.com/recorder/self-healing)** -- auto-fix test failures after recording
-- **[Codebase Awareness](https://kovar.orlalabs.com/recorder/codebase-awareness)** -- source-verified locators for higher test stability
+- **[Codebase Awareness](https://kovar.orlalabs.com/recorder/codebase-awareness)** -- source-verified locators for React apps (requires installing `@babel/*` packages manually in 0.6.0)
 
 ### MCP Server
 
-Local-first MCP server for recording, asserting, and replaying agent runs. Runs go to `~/.kovar/runs.db` (no cloud, no auth — override with `KOVAR_DB_PATH`). Tools exposed: `record_run`, `assert_tool_called`, `assert_no_drift`, `assert_cost_under`, `replay_run`, `record_canonical`, `get_run`, `list_runs`.
+Local-first MCP server for recording, asserting, and replaying agent runs. Runs go to `~/.kovar/runs.db` (no cloud, no auth — override with `KOVAR_DB_PATH`). 15 tools: recording (`record_run`, `append_events`), assertions (`assert_tool_called`, `assert_tool_order`, `assert_no_loops`, `assert_cost_under`, `assert_token_budget_per_step`, `assert_latency_under`, `assert_messages_match`, `assert_no_drift`), canonicals (`record_canonical`), replay and diff (`replay_run`, `diff_runs`), and inspection (`get_run`, `list_runs`). See the [MCP docs](https://kovar.orlalabs.com/mcp/introduction/).
 
 Add to your MCP client config (Claude Code: `~/.claude.json` or project `.mcp.json`):
 
