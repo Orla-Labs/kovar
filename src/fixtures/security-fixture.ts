@@ -191,16 +191,6 @@ export class SecurityFixture {
 			);
 		}
 
-		if (explicitChecks) {
-			const known = new Set(this.auditChecks.map((e) => e.name));
-			const unknown = [...explicitChecks].filter((name) => !known.has(name));
-			if (unknown.length > 0) {
-				console.warn(
-					`[kovar] audit() ignored unknown check name(s): ${unknown.join(", ")}. Valid names: ${[...known].join(", ")}.`,
-				);
-			}
-		}
-
 		const allFindings: SecurityFinding[] = [];
 
 		for (const entry of this.auditChecks) {

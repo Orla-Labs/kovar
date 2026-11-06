@@ -212,18 +212,6 @@ const HEADER_RULES: HeaderRule[] = [
 	},
 ];
 
-const KNOWN_HEADERS = new Set(HEADER_RULES.map((r) => r.header));
-
-function warnUnknownHeaderNames(options?: HeaderCheckOptions): void {
-	const names = [...(options?.skip ?? []), ...(options?.only ?? [])];
-	const unknown = names.filter((h) => !KNOWN_HEADERS.has(h.toLowerCase()));
-	if (unknown.length > 0) {
-		console.warn(
-			`[kovar] Unknown header name(s) in skip/only were ignored: ${unknown.join(", ")}. Use full header names, e.g. ${[...KNOWN_HEADERS].slice(0, 3).join(", ")}.`,
-		);
-	}
-}
-
 function shouldSkipRule(rule: HeaderRule, options?: HeaderCheckOptions): boolean {
 	if (options?.skip?.some((h) => h.toLowerCase() === rule.header)) return true;
 	if (options?.only && !options.only.some((h) => h.toLowerCase() === rule.header)) return true;
@@ -282,8 +270,6 @@ export function analyzeHeaders(
 	}
 
 	const findings: SecurityFinding[] = [];
-
-	warnUnknownHeaderNames(options);
 
 	for (const rule of HEADER_RULES) {
 		if (shouldSkipRule(rule, options)) continue;

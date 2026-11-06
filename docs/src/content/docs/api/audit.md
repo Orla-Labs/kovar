@@ -67,7 +67,7 @@ const report = await security.audit({
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `checks` | `string[]` | Which checks to run (default: `["headers", "cookies"]`). Valid names: `headers`, `cookies`, `xss`, `csrf`, `cors`, `auth`, `accessibility`. Unknown names are ignored with a console warning, so a typo runs nothing and the audit passes. |
+| `checks` | `string[]` | Which checks to run (default: `["headers", "cookies"]`). Valid names: `headers`, `cookies`, `xss`, `csrf`, `cors`, `auth`, `accessibility`. In 0.6.0, unknown names are silently ignored, so a typo runs nothing and the audit passes. Double-check the spelling. |
 | `includeXSS` | `boolean` | Include XSS testing (default: `false`) |
 | `headers` | `object` | Options passed to headers check |
 | `cookies` | `object` | Options passed to cookies check |
