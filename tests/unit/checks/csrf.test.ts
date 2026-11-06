@@ -255,12 +255,10 @@ describe("checkCSRF", () => {
 
 	it("treats a same-origin Post/Redirect/Get as accepted", async () => {
 		const request = makeRequest({
-			fetch: vi
-				.fn()
-				.mockResolvedValue({
-					status: () => 303,
-					headers: () => ({ location: "/settings?saved=1" }),
-				}),
+			fetch: vi.fn().mockResolvedValue({
+				status: () => 303,
+				headers: () => ({ location: "/settings?saved=1" }),
+			}),
 		});
 		const findings = await checkCSRF(request, "https://example.com/settings", {
 			methods: ["POST"],
