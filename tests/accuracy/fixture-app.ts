@@ -387,6 +387,22 @@ document.getElementById('q').addEventListener('input', (e) => {
 		res.writeHead(200);
 		res.end("ok");
 	},
+	"/good/csrf-json-only": async (req, res) => {
+		// Cookie session, no token, but only accepts application/json. Cross-site
+		// forms cannot send that content type without a CORS preflight.
+		if (!hasSession(req)) {
+			res.writeHead(401);
+			res.end();
+			return;
+		}
+		if (!(req.headers["content-type"] ?? "").startsWith("application/json")) {
+			res.writeHead(415);
+			res.end();
+			return;
+		}
+		res.writeHead(200, { "Content-Type": "application/json", "X-CSRF-Token": "n/a" });
+		res.end("{}");
+	},
 	"/good/csrf-token": async (req, res) => {
 		if (req.method !== "GET" && req.headers["x-csrf-token"] !== "tok123") {
 			res.writeHead(403);

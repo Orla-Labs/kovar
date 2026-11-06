@@ -222,8 +222,11 @@ test.describe("csrf (logged-in context, as a CSRF victim would be)", () => {
 		expect(failing(await checkCSRF(req, `${app.url}/vuln/csrf-form-no-token`))).not.toEqual([]);
 	});
 
-	test("FN check: same endpoint via anonymous request fixture is flagged", async ({ request }) => {
-		expect(failing(await checkCSRF(request, `${app.url}/vuln/csrf-form-no-token`))).not.toEqual([]);
+	test("silent-skip check: anonymous request context is reported as 'could not evaluate'", async ({
+		request,
+	}) => {
+		const ids = failing(await checkCSRF(request, `${app.url}/vuln/csrf-form-no-token`));
+		expect(ids).toContain("csrf-check-unauthenticated");
 	});
 
 	test("control: token-protected endpoint passes", async ({ page }) => {
@@ -236,12 +239,22 @@ test.describe("csrf (logged-in context, as a CSRF victim would be)", () => {
 		expect(failing(await checkCSRF(req, `${app.url}/good/csrf-origin-check`))).toEqual([]);
 	});
 
-	test("FP check: token-protected endpoint that 302s anonymous users passes", async ({
-		request,
+	test("FP check: JSON-only endpoint (not reachable by cross-site forms) passes", async ({
+		page,
 	}) => {
-		expect(failing(await checkCSRF(request, `${app.url}/good/csrf-token-redirect-login`))).toEqual(
-			[],
-		);
+		const req = await login(page);
+		expect(failing(await checkCSRF(req, `${app.url}/good/csrf-json-only`))).toEqual([]);
+	});
+
+	test("FP check: 302-to-login is not reported as an unprotected endpoint", async ({ request }) => {
+		const ids = failing(await checkCSRF(request, `${app.url}/good/csrf-token-redirect-login`));
+		expect(ids).not.toContain("csrf-unprotected-endpoint");
+		expect(ids).toContain("csrf-check-unauthenticated");
+	});
+
+	test("control: same endpoint passes with a logged-in context", async ({ page }) => {
+		const req = await login(page);
+		expect(failing(await checkCSRF(req, `${app.url}/good/csrf-token-redirect-login`))).toEqual([]);
 	});
 
 	test("silent-skip check: unreachable server must not pass", async ({ request }) => {
