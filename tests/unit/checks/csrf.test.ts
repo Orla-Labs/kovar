@@ -210,7 +210,8 @@ describe("checkCSRF", () => {
 		});
 		const request = makeRequest({ fetch: fetchMock });
 		await checkCSRF(request, "https://example.com/api");
-		expect(fetchMock).toHaveBeenCalledTimes(4);
+		// one same-origin control GET + POST, PUT, DELETE, PATCH probes
+		expect(fetchMock).toHaveBeenCalledTimes(5);
 	});
 
 	it("reports unreachable endpoints as a failing finding instead of passing silently", async () => {
@@ -231,7 +232,7 @@ describe("checkCSRF", () => {
 		await checkCSRF(makeRequest({ fetch: fetchMock }), "https://example.com/api", {
 			methods: ["POST"],
 		});
-		const opts = fetchMock.mock.calls[0]?.[1];
+		const opts = fetchMock.mock.calls.find((c) => c[1].method === "POST")?.[1];
 		expect(opts.maxRedirects).toBe(0);
 		expect(opts.headers["content-type"]).toBe("application/x-www-form-urlencoded");
 		expect(opts.headers.origin).toMatch(/^https:\/\//);
@@ -251,6 +252,24 @@ describe("checkCSRF", () => {
 			expect(f?.severity).toBe("high");
 			expect(findings.find((f) => f.id === "csrf-unprotected-endpoint")).toBeUndefined();
 		}
+	});
+
+	it("treats 302-to-login as rejected when a control GET shows the context is logged in", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation((_url: string, opts: { method: string }) =>
+				Promise.resolve(
+					opts.method === "GET"
+						? { status: () => 200, headers: () => ({}) }
+						: { status: () => 302, headers: () => ({ location: "/login" }) },
+				),
+			);
+		const findings = await checkCSRF(
+			makeRequest({ fetch: fetchMock }),
+			"https://example.com/settings",
+			{ methods: ["POST"] },
+		);
+		expect(findings.filter((f) => f.severity === "critical" || f.severity === "high")).toEqual([]);
 	});
 
 	it("treats a same-origin Post/Redirect/Get as accepted", async () => {

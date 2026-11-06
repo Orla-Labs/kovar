@@ -414,6 +414,40 @@ document.getElementById('q').addEventListener('input', (e) => {
 		res.writeHead(200);
 		res.end("ok");
 	},
+	"/good/csrf-reset-session": async (req, res) => {
+		// Rails protect_from_forgery with: :reset_session / :null_session style:
+		// a missing token drops the session and the user lands on /login.
+		if (!hasSession(req)) {
+			res.writeHead(302, { Location: "/login" });
+			res.end();
+			return;
+		}
+		if (req.method !== "GET" && req.headers["x-csrf-token"] !== "tok123") {
+			res.writeHead(302, { Location: "/login", "Set-Cookie": "sid=; Path=/; Max-Age=0" });
+			res.end();
+			return;
+		}
+		res.writeHead(200, { "Content-Type": "text/html", "X-CSRF-Token": "tok123" });
+		res.end(html("ok"));
+	},
+	"/vuln/csrf-samesite-lax-only": async (req, res) => {
+		// No token, no Origin check; relies only on the session cookie's SameSite.
+		if (req.method === "GET") {
+			res.writeHead(200, {
+				"Content-Type": "text/html",
+				"Set-Cookie": `sid=${SESSION_VALUE}; Path=/; HttpOnly; SameSite=Lax`,
+			});
+			res.end(html("ok"));
+			return;
+		}
+		if (!hasSession(req)) {
+			res.writeHead(401);
+			res.end();
+			return;
+		}
+		res.writeHead(200);
+		res.end("changed");
+	},
 	"/good/csrf-json-only": async (req, res) => {
 		// Cookie session, no token, but only accepts application/json. Cross-site
 		// forms cannot send that content type without a CORS preflight.

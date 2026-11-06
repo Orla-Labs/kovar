@@ -288,6 +288,23 @@ test.describe("csrf (logged-in context, as a CSRF victim would be)", () => {
 		expect(failing(await checkCSRF(req, `${app.url}/good/csrf-origin-check`))).toEqual([]);
 	});
 
+	test("FP check: token rejection that resets the session (302 /login) passes when logged in", async ({
+		page,
+	}) => {
+		const req = await login(page);
+		expect(failing(await checkCSRF(req, `${app.url}/good/csrf-reset-session`))).toEqual([]);
+	});
+
+	test("judgement: SameSite=Lax-only session (no token) is still reported", async ({ page }) => {
+		// Kovar treats SameSite as defence in depth (same-site sibling subdomains and
+		// method-override bypass it), so this stays a failing finding. See R1-S7.
+		await page.goto(`${app.url}/vuln/csrf-samesite-lax-only`);
+		const ids = failing(
+			await checkCSRF(page.context().request, `${app.url}/vuln/csrf-samesite-lax-only`),
+		);
+		expect(ids).toContain("csrf-unprotected-endpoint");
+	});
+
 	test("FP check: JSON-only endpoint (not reachable by cross-site forms) passes", async ({
 		page,
 	}) => {

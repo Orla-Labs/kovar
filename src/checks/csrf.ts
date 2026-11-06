@@ -92,6 +92,30 @@ function unprotectedFinding(
 	};
 }
 
+/**
+ * Plain same-origin GET with the same context, sent BEFORE the probes (a
+ * rejected probe may clear the session cookie). Tells "the context is not
+ * logged in" apart from "the CSRF defence answered with 401 / a login
+ * redirect" (e.g. Rails protect_from_forgery with: :reset_session).
+ */
+async function controlIsAuthenticated(
+	request: APIRequestContext,
+	url: string,
+): Promise<boolean | null> {
+	try {
+		const response = await request.fetch(url, { method: "GET", maxRedirects: 0 });
+		const status = response.status();
+		if (status >= 200 && status < 300) return true;
+		if (status === 401) return false;
+		if (status >= 300 && status < 400) {
+			return classifyRedirect(url, status, response.headers().location).kind !== "unauthenticated";
+		}
+	} catch {
+		// fall through: inconclusive
+	}
+	return null;
+}
+
 async function checkEndpointMethods(
 	request: APIRequestContext,
 	url: string,
@@ -100,11 +124,12 @@ async function checkEndpointMethods(
 	const findings: SecurityFinding[] = [];
 	let unauthenticated: { status: number; via?: string } | null = null;
 	const errors: string[] = [];
+	const control = await controlIsAuthenticated(request, url);
 
 	for (const method of methods) {
 		const outcome = await probeCrossSiteRequest(request, url, method);
 		if (outcome.kind === "accepted") findings.push(unprotectedFinding(url, method, outcome));
-		else if (outcome.kind === "unauthenticated") unauthenticated ??= outcome;
+		else if (outcome.kind === "unauthenticated" && control !== true) unauthenticated ??= outcome;
 		else if (outcome.kind === "error") errors.push(outcome.message);
 	}
 
