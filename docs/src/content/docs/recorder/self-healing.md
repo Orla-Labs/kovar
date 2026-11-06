@@ -3,16 +3,17 @@ title: Self-Healing
 description: Auto-fix generated test failures with AI-powered self-healing
 ---
 
-When you pass `--heal`, Kovar runs the generated test immediately after recording. If the test fails, it sends the failure output back to the AI, which rewrites the test code to fix the issue. `--heal-attempts` (default: 3) is the total number of **test runs**, including the first one, so the AI is asked for a fix at most `--heal-attempts - 1` times (2 by default). `--heal-attempts 1` runs the test once and never heals.
+When you pass `--heal`, Kovar runs the generated test after recording, once you confirm it. If the test fails, it sends the failure output back to the AI, which rewrites the test code to fix the issue. `--heal-attempts` (default: 3) is the total number of **test runs**, including the first one, so the AI is asked for a fix at most `--heal-attempts - 1` times (2 by default). `--heal-attempts 1` runs the test once and never heals.
 
 :::caution[Generated code runs on your machine]
-`--heal` executes AI-written test code immediately, before you have reviewed it. That code is shaped by the content of the site you recorded. Kovar validates it and runs it in a child process that receives only `PATH`/`HOME`-style variables, proxy settings, `BASE_URL` and `TEST_*`; your other environment variables (CI secrets, API keys, `NODE_OPTIONS`) are not passed. If your `playwright.config` needs more (for example a `webServer` that reads `DATABASE_URL`), list the names in `KOVAR_HEAL_ENV=DATABASE_URL,PORT`. Validation is defense in depth, not a sandbox: only use `--heal` on sites you trust, and review generated files before committing them.
+`--heal` executes AI-written test code on your machine. Since 0.7.0 Kovar asks before **every** run (`[y/N]`, default no), because each healing attempt runs new AI output. `--yes` skips the prompt; it is required when stdin is not a terminal (CI, pipes), and without it `kovar record --heal` exits with an error before recording. That code is shaped by the content of the site you recorded. Kovar validates it and runs it in a child process that receives only `PATH`/`HOME`-style variables, proxy settings, `BASE_URL` and `TEST_*`; your other environment variables (CI secrets, API keys, `NODE_OPTIONS`) are not passed. If your `playwright.config` needs more (for example a `webServer` that reads `DATABASE_URL`), list the names in `KOVAR_HEAL_ENV=DATABASE_URL,PORT`. Validation is defense in depth, not a sandbox: only use `--heal` on sites you trust, and review generated files before committing them.
 :::
 
 ## Usage
 
 ```bash
-kovar record https://your-app.com --heal
+kovar record https://your-app.com --heal          # asks before each run
+kovar record https://your-app.com --heal --yes    # no prompt (non-interactive shells)
 ```
 
 Allow up to 5 test runs (4 AI fixes):

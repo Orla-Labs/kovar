@@ -12,6 +12,7 @@ function parseCliArgs() {
 			provider: { type: "string" },
 			model: { type: "string" },
 			heal: { type: "boolean", default: false },
+			yes: { type: "boolean", short: "y", default: false },
 			"heal-attempts": { type: "string", default: "3" },
 			"db-path": { type: "string" },
 			"agent-id": { type: "string" },
@@ -157,6 +158,15 @@ async function executeCommand(
 		process.exit(1);
 	}
 
+	// --heal executes AI-generated code. Refuse up front, before the user spends time
+	// recording, when there is no terminal to confirm on and --yes was not given.
+	if (values.heal && !values.yes && !process.stdin.isTTY) {
+		console.error(
+			"Error: --heal runs AI-generated test code on this machine and needs confirmation.\n  stdin is not a terminal, so pass --heal --yes to run it without a prompt.\n",
+		);
+		process.exit(1);
+	}
+
 	if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
 		console.error(
 			"Error: No LLM API key found.\n  Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable.\n",
@@ -173,6 +183,7 @@ async function executeCommand(
 		model: values.model as string | undefined,
 		heal: values.heal as boolean | undefined,
 		healAttempts: Number.parseInt((values["heal-attempts"] as string) ?? "3", 10),
+		healYes: values.yes as boolean | undefined,
 	});
 
 	try {
@@ -212,7 +223,9 @@ function printUsage() {
     -s, --source        Source directory for codebase-aware locator generation
     --provider          LLM provider: anthropic or openai (default: auto-detect from env)
     --model             LLM model (default: claude-sonnet-4-20250514 or gpt-4o)
-    --heal              Run generated test and auto-fix failures (up to 3 attempts)
+    --heal              Run generated test and auto-fix failures (up to 3 attempts).
+                        Executes AI-generated code: asks before each run, or pass --yes
+    -y, --yes           With --heal: run without asking (required when stdin is not a TTY)
     --heal-attempts N   Max self-healing attempts (default: 3)
     --db-path           Override SQLite path for the MCP server (default: ~/.kovar/runs.db)
     --agent-id          Agent id for proxy/ingest run records (default: proxy or ingest)

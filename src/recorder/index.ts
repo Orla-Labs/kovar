@@ -6,7 +6,7 @@ import { ActionCapture } from "./action-capture.js";
 import { AssertionDetector } from "./assertion-detector.js";
 import { createLLMProvider } from "./llm/index.js";
 import { NetworkCapture } from "./network-capture.js";
-import { SelfHealer } from "./self-healer.js";
+import { SelfHealer, healConfirmInteractive, healConfirmYes } from "./self-healer.js";
 import { TestGenerator } from "./test-generator.js";
 import { Toolbar } from "./toolbar.js";
 import type { RecorderConfig, SessionData } from "./types.js";
@@ -281,7 +281,12 @@ export class RecordingSession {
 		const result = await generator.generate(sessionData, this.config.testName, sourceMap);
 
 		if (this.config.heal && !result.fallback) {
-			const healer = new SelfHealer(provider, this.config.outputDir, this.config.healAttempts);
+			const healer = new SelfHealer(
+				provider,
+				this.config.outputDir,
+				this.config.healAttempts,
+				this.config.healYes ? healConfirmYes : healConfirmInteractive,
+			);
 			await healer.heal(result.specPath, result.pagePath);
 		}
 

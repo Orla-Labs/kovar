@@ -18,7 +18,8 @@ kovar record <url> [options]
 | `--source <dir>` | `-s` | Source directory for codebase-aware locators | Off |
 | `--provider <name>` | | LLM provider: `anthropic` or `openai` | Auto-detect from env |
 | `--model <name>` | | LLM model override | `claude-sonnet-4-20250514` or `gpt-4o` |
-| `--heal` | | After generating tests, run them and use AI to fix failures | Off |
+| `--heal` | | After generating tests, run them and use AI to fix failures. Asks for confirmation before each run | Off |
+| `--yes` | `-y` | With `--heal`: run without asking. Required when stdin is not a terminal | Off |
 | `--heal-attempts <n>` | | Maximum number of self-healing attempts | `3` |
 | `--help` | `-h` | Show help | |
 

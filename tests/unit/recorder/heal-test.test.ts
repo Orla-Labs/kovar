@@ -17,7 +17,7 @@ vi.mock("node:fs", () => ({
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { SelfHealer } from "../../../src/recorder/self-healer.js";
+import { SelfHealer, healConfirmYes } from "../../../src/recorder/self-healer.js";
 
 const mockedExecFileSync = vi.mocked(execFileSync);
 const mockedReadFileSync = vi.mocked(readFileSync);
@@ -30,6 +30,7 @@ function createHealer(overrides: { maxAttempts?: number; outputDir?: string } = 
 		provider,
 		overrides.outputDir ?? "./tests",
 		overrides.maxAttempts ?? 3,
+		healConfirmYes,
 	);
 	return { healer, provider };
 }

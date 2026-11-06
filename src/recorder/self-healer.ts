@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
+import { createInterface } from "node:readline/promises";
 import { extractPOMCode, validateCode, validateSpecCode } from "./codegen.js";
 import { buildFixPrompt } from "./llm/prompt.js";
 import type { LLMProvider } from "./llm/types.js";
@@ -65,12 +66,45 @@ export function buildHealEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.Pr
 	return env;
 }
 
+/**
+ * Asked before EVERY execution of the generated test: attempt 1 runs the first
+ * generation, and attempts 2..N run new LLM output. Resolve true to run it.
+ */
+export type HealConfirm = (specPath: string, attempt: number) => Promise<boolean>;
+
+/** `--heal --yes`: run without asking. */
+export const healConfirmYes: HealConfirm = async () => true;
+
+/**
+ * Default confirmation: prompt on an interactive terminal, refuse otherwise.
+ * Non-interactive runs (CI, pipes) must opt in explicitly with `--yes`.
+ */
+export const healConfirmInteractive: HealConfirm = async (specPath, attempt) => {
+	if (!process.stdin.isTTY) {
+		console.warn(
+			"  ⚠ Self-heal: not running the generated test. stdin is not a terminal, so it cannot be confirmed.\n" +
+				"    Re-run with --heal --yes to execute AI-generated code without a prompt.",
+		);
+		return false;
+	}
+	const rl = createInterface({ input: process.stdin, output: process.stdout });
+	try {
+		const answer = await rl.question(
+			`  ? Self-heal attempt ${attempt}: run the AI-generated test ${specPath} on this machine? Review it first. [y/N] `,
+		);
+		return /^y(es)?$/i.test(answer.trim());
+	} finally {
+		rl.close();
+	}
+};
+
 /** @internal Not part of the stable public API. May change without notice. */
 export class SelfHealer {
 	constructor(
 		private provider: LLMProvider,
 		private outputDir: string,
 		private maxAttempts = 3,
+		private confirm: HealConfirm = healConfirmInteractive,
 	) {}
 
 	async heal(specPath: string, pagePath: string | null): Promise<void> {
@@ -80,6 +114,10 @@ export class SelfHealer {
 				"    files first if the recorded site is not fully trusted.",
 		);
 		for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
+			if (!(await this.confirm(specPath, attempt))) {
+				console.log("  ✦ Self-heal: skipped; the generated test was not executed.\n");
+				return;
+			}
 			console.log(`  ✦ Self-heal: running test (attempt ${attempt}/${this.maxAttempts})...`);
 
 			const result = this.runTest(specPath);
