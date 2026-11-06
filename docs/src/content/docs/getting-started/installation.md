@@ -16,6 +16,18 @@ npm install -D @playwright/test
 npx playwright install
 ```
 
+Kovar's examples use relative paths like `page.goto("/login")`, so your Playwright config needs a `baseURL` (and usually a `webServer` that starts your app). Without one, the first test fails with `Cannot navigate to invalid URL`:
+
+```typescript
+// playwright.config.ts
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  use: { baseURL: "http://localhost:3000" },
+  webServer: { command: "npm run dev", url: "http://localhost:3000", reuseExistingServer: true },
+});
+```
+
 ## Setup
 
 Replace your Playwright import with Kovar:
@@ -36,13 +48,13 @@ After swapping the import, you can use:
 
 - **Security matchers** on `expect()` -- `toHaveSecureHeaders()`, `toHaveSecureCookies()`, `toBeResilientToXSS()`, `toBeCSRFProtected()`, `toHaveSecureCORS()`, `toRequireAuthentication()`, `toBeAccessible()`.
 - **The `security` fixture** -- programmatic access to all checks with `assert()` and `check()` modes.
-- **Full audit** -- `security.audit()` runs all checks at once and returns a structured report.
+- **Full audit** -- `security.audit()` runs the default checks (headers and cookies; others are opt-in) and returns a structured report.
 
 All standard Playwright APIs (`page`, `context`, `request`, `expect`) continue to work exactly as before.
 
 ## Optional: Reporter
 
-Add the Kovar reporter to your Playwright config for a security summary after each test run:
+Add the Kovar reporter to your Playwright config for a security summary after each test run. The reporter only counts findings from the `security` fixture (`security.*.check()/assert()` and `security.audit()`); `expect(...)` matchers do not feed it, so a suite that uses only matchers prints no score card.
 
 ```typescript
 // playwright.config.ts

@@ -33,8 +33,8 @@ Kovar's security module checks seven categories:
 Beyond security checks, Kovar also provides:
 
 - **[Auto-Remediation](/remediation/overview)** -- Framework-specific fix suggestions for every finding.
-- **[Compliance Testing](/compliance/owasp-asvs)** -- Map findings to OWASP ASVS 4.0.3 and PCI-DSS 4.0.
-- **[CI/CD Integration](/ci/github-action)** -- GitHub Action with PR comments and baseline tracking.
+- **[Compliance Mapping](/compliance/owasp-asvs)** -- Map findings to OWASP ASVS 4.0.3 and PCI-DSS 4.0 requirement IDs (see the caveats on those pages).
+- **[CI/CD Integration](/ci/github-action)** -- run your Kovar tests in CI; a standalone GitHub Action is in progress (not usable in 0.6.0).
 - **[Reporter](/ci/reporter)** -- Playwright reporter with security score cards.
 - **[AI Recorder](/recorder/getting-started)** -- Record browser sessions and generate Page Object Model tests with resilient locators.
 
@@ -46,7 +46,7 @@ The agent itself is the caller. It records what it just did into a local SQLite 
 
 ## Design Principles
 
-- **Zero runtime dependencies** -- only a peer dependency on `@playwright/test`.
+- **Small surface for the core** -- the security matchers only need `@playwright/test` (peer dependency). Note: in 0.6.0 the package also installs `@modelcontextprotocol/sdk` and the native `better-sqlite3` for the MCP server, even if you never use it.
 - **Drop-in replacement** -- swap one import line, everything else works.
 - **Layered architecture** -- pure analysis functions, Playwright matchers, and fixtures are separate layers you can use independently.
 - **Actionable findings** -- findings include severity, remediation guidance, and where applicable, CWE IDs.

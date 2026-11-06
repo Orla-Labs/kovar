@@ -20,7 +20,7 @@ import { test, expect } from "@orlalabs/kovar";
 test("verify security after login", async ({ page, security }) => {
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email" }).fill("user@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("password");
+  await page.getByLabel("Password").fill("password");
   await page.getByRole("button", { name: "Sign In" }).click();
   await page.waitForURL("/dashboard");
 

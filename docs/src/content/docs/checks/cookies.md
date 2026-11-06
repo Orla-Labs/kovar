@@ -13,7 +13,7 @@ import { test, expect } from "@orlalabs/kovar";
 test("session cookies are secure after login", async ({ page, context }) => {
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email" }).fill("user@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("password");
+  await page.getByLabel("Password").fill("password");
   await page.getByRole("button", { name: "Sign In" }).click();
 
   await expect(context).toHaveSecureCookies();
