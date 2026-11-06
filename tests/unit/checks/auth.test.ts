@@ -182,12 +182,26 @@ describe("checkAuth", () => {
 		);
 	});
 
-	it("handles network errors gracefully", async () => {
+	it("reports network errors as a failing finding instead of passing silently", async () => {
 		const request = makeRequest({
 			fetch: vi.fn().mockRejectedValue(new Error("Network error")),
 		});
-		const findings = await checkAuth(request, "https://example.com/api/admin");
-		expect(findings).toHaveLength(0);
+		const findings = await checkAuth(request, "https://example.com/api/admin", {
+			methods: ["GET"],
+		});
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.id).toBe("auth-check-error");
+		expect(findings[0]?.severity).toBe("high");
+	});
+
+	it("does not follow redirects, so a 302 to a login page is not read as a 200", async () => {
+		const fetch = vi.fn().mockResolvedValue({ status: () => 302, text: async () => "" });
+		const request = makeRequest({ fetch });
+		await checkAuth(request, "https://example.com/account", { methods: ["GET"] });
+		expect(fetch).toHaveBeenCalledWith(
+			"https://example.com/account",
+			expect.objectContaining({ maxRedirects: 0 }),
+		);
 	});
 
 	it("detects various sensitive patterns in error responses", async () => {

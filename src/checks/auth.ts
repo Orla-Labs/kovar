@@ -31,6 +31,7 @@ async function checkEndpointAuth(
 		const response = await request.fetch(url, {
 			method,
 			headers: {},
+			maxRedirects: 0,
 		});
 		const status = response.status();
 
@@ -74,8 +75,16 @@ async function checkEndpointAuth(
 				});
 			}
 		}
-	} catch {
-		// Network errors are not security findings
+	} catch (error: unknown) {
+		findings.push({
+			id: "auth-check-error",
+			category: "authentication",
+			severity: "high",
+			message: `${method} ${url} could not be checked: ${error instanceof Error ? error.message : String(error)}`,
+			remediation:
+				"Kovar could not reach the endpoint, so authentication was NOT verified. Make sure the server is running and the URL is correct.",
+			url,
+		});
 	}
 
 	return findings;
