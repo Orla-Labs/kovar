@@ -8,7 +8,7 @@ An adapter parses a harness's session file format into kovar's internal shape. I
 ## The interface
 
 ```typescript
-import type { Adapter, AdapterContext, AdapterParseResult } from "@orlalabs/kovar";
+import type { Adapter, AdapterContext, AdapterParseResult } from "@orlalabs/kovar/mcp";
 
 interface Adapter {
   name: string;                                              // matches --format

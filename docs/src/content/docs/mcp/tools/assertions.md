@@ -3,7 +3,7 @@ title: Assertions
 description: Eight assertion primitives for agent runs
 ---
 
-Eight tools that read a run from the store and return `{ passed: bool, ... }`. Assertions never throw on a `false` result — failure is a value, not an error. They throw only on bad input (`INVALID_INPUT`) or a missing run (`RUN_NOT_FOUND`).
+Eight tools that read a run from the store and return `{ passed: bool, ... }`. Assertions never throw on a `false` result — failure is a value, not an error. They throw only on bad input (`INVALID_INPUT`), a missing run (`RUN_NOT_FOUND`), or, for `assert_no_drift`, a missing canonical (`CANONICAL_NOT_FOUND`).
 
 ## `assert_tool_called`
 
