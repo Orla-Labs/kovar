@@ -10,6 +10,21 @@ const SEVERITY_ICONS: Record<string, string> = {
 	info: "\u26AA",
 };
 
+/**
+ * Escape text that originates from the scanned site (cookie names, header values,
+ * the target URL) before it goes into the HTML/markdown PR comment: no raw HTML,
+ * no markdown links/images, no @mentions or #references.
+ */
+export function escapeCommentText(text: string): string {
+	return String(text)
+		.replace(/[\r\n]+/g, " ")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/([\\`*_[\]()!|~#])/g, "\\$1")
+		.replace(/@/g, "@\u200b");
+}
+
 function statusEmoji(passed: boolean): string {
 	return passed ? "\u2705" : "\u26A0\uFE0F";
 }
@@ -50,11 +65,15 @@ function buildDetails(findings: SecurityFinding[]): string {
 	const details = sorted.map((f) => {
 		const icon = SEVERITY_ICONS[f.severity] ?? "";
 		const severityLabel = f.severity.charAt(0).toUpperCase() + f.severity.slice(1);
-		const lines = ["<details>", `<summary>${icon} ${severityLabel}: ${f.message}</summary>`, ""];
+		const lines = [
+			"<details>",
+			`<summary>${icon} ${severityLabel}: ${escapeCommentText(f.message)}</summary>`,
+			"",
+		];
 		if (f.cweId) {
-			lines.push(`**CWE:** ${f.cweId}`);
+			lines.push(`**CWE:** ${escapeCommentText(f.cweId)}`);
 		}
-		lines.push(`**Remediation:** ${f.remediation}`);
+		lines.push(`**Remediation:** ${escapeCommentText(f.remediation)}`);
 		lines.push("");
 		lines.push("</details>");
 		return lines.join("\n");
@@ -64,7 +83,9 @@ function buildDetails(findings: SecurityFinding[]): string {
 }
 
 function buildResolvedList(resolved: BaselineEntry[]): string {
-	return resolved.map((e) => `- ~~${e.id}: ${e.severity}~~`).join("\n");
+	return resolved
+		.map((e) => `- ~~${escapeCommentText(e.id)}: ${escapeCommentText(e.severity)}~~`)
+		.join("\n");
 }
 
 export function formatPRComment(
@@ -83,7 +104,7 @@ export function formatPRComment(
 	const lines: string[] = [
 		"## \u{1F512} Kovar Security Check",
 		"",
-		`**URL:** ${options.url}`,
+		`**URL:** ${escapeCommentText(options.url)}`,
 		`**Score:** ${options.score}/100`,
 		`**Status:** ${status} (threshold: ${options.threshold})`,
 		"",
