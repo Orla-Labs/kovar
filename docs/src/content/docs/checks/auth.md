@@ -21,7 +21,7 @@ By default this sends `GET`, `POST`, `PUT` and `DELETE` without credentials. If 
 
 ## What It Checks
 
-The matcher sends requests without credentials and verifies:
+The matcher sends requests from its **own isolated request context**, with no cookies, `storageState`, `extraHTTPHeaders`, HTTP credentials or client certificates, even if the `request` you pass in is logged in (for example through a global auth-setup project with `use.storageState`). It keeps the project's `baseURL`, `ignoreHTTPSErrors` and `proxy`. It verifies:
 
 - The endpoint does not return `2xx` (critical). A `3xx` redirect to a login page is reported as info. Any other non-2xx status (401, 403, but also 404 or 500) counts as rejected.
 - Error responses don't contain sensitive keywords (password, secret, api_key, token, private_key, credit_card, ssn, social_security).
@@ -44,7 +44,7 @@ await expect(request).toRequireAuthentication("/api/admin/users", {
 |--------|------|-------------|
 | `endpoints` | `string[]` | Multiple endpoints to check |
 | `methods` | `string[]` | HTTP methods to test (default: GET, POST, PUT, DELETE) |
-
+| `baseURL` | `string` | Base URL for relative endpoints (default: the project's `use.baseURL`) |
 
 An `expectedStatus` option exists in the TypeScript types but has no effect in 0.6.0.
 

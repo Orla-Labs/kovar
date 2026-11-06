@@ -253,7 +253,7 @@ test.describe("auth", () => {
 		});
 
 		test("FP check: protected endpoint is not reported as unprotected", async ({ request }) => {
-			test.fail(true, "Known gap R1-A3: the request fixture inherits storageState");
+			// R1-A3 fixed: checkAuth probes from an isolated context, not the logged-in fixture.
 			expect(failing(await checkAuth(request, `${app.url}/good/auth-401`))).toEqual([]);
 		});
 	});

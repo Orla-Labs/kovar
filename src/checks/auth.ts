@@ -1,10 +1,54 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, request as playwrightRequest } from "@playwright/test";
 import type { SecurityFinding } from "../types/results.js";
 
 export interface AuthCheckOptions {
 	endpoints?: string[];
 	methods?: ("GET" | "POST" | "PUT" | "DELETE")[];
 	expectedStatus?: number;
+	/**
+	 * Base URL for relative endpoints. Defaults to the current Playwright project's
+	 * `use.baseURL` when called inside a test.
+	 */
+	baseURL?: string;
+}
+
+type NewContextOptions = NonNullable<Parameters<typeof playwrightRequest.newContext>[0]>;
+
+interface IsolatedContext {
+	request: APIRequestContext;
+	dispose: () => Promise<void>;
+}
+
+/**
+ * The auth check must send requests WITHOUT the caller's credentials. Playwright's
+ * `request` fixture inherits `use.storageState`, `extraHTTPHeaders` and `httpCredentials`,
+ * so with a standard global auth-setup project every protected endpoint would look
+ * unprotected (R1-A3). Always probe from a fresh context that carries none of them.
+ *
+ * Inside a test worker, Playwright also fills in every `request.newContext()` option
+ * whose key is ABSENT from the project's `use` (including `storageState`). The
+ * credential-bearing keys are therefore set explicitly, not just omitted.
+ */
+async function createIsolatedContext(options?: AuthCheckOptions): Promise<IsolatedContext> {
+	const pw = await import("@playwright/test");
+	let use: NewContextOptions = {};
+	try {
+		use = pw.test.info().project.use as NewContextOptions;
+	} catch {
+		// Not inside a Playwright test (e.g. a plain script); use the options only.
+	}
+	const contextOptions = {
+		storageState: { cookies: [], origins: [] },
+		extraHTTPHeaders: {},
+		httpCredentials: undefined,
+		clientCertificates: undefined,
+	} as unknown as NewContextOptions;
+	const baseURL = options?.baseURL ?? use.baseURL;
+	if (baseURL !== undefined) contextOptions.baseURL = baseURL;
+	if (use.ignoreHTTPSErrors !== undefined) contextOptions.ignoreHTTPSErrors = use.ignoreHTTPSErrors;
+	if (use.proxy !== undefined) contextOptions.proxy = use.proxy;
+	const context = await pw.request.newContext(contextOptions);
+	return { request: context, dispose: () => context.dispose() };
 }
 
 const DEFAULT_METHODS = ["GET", "POST", "PUT", "DELETE"] as const;
@@ -90,8 +134,16 @@ async function checkEndpointAuth(
 	return findings;
 }
 
+/**
+ * Checks that each endpoint rejects unauthenticated requests.
+ *
+ * `_request` is accepted for API compatibility and is NOT used to send the probes:
+ * the check always runs in an isolated request context with no cookies, storage
+ * state, extra headers or HTTP credentials, so a logged-in `request` fixture cannot
+ * make a protected endpoint look unprotected.
+ */
 export async function checkAuth(
-	request: APIRequestContext,
+	_request: APIRequestContext,
 	url: string,
 	options?: AuthCheckOptions,
 ): Promise<SecurityFinding[]> {
@@ -99,11 +151,32 @@ export async function checkAuth(
 	const endpoints = options?.endpoints ?? [url];
 	const findings: SecurityFinding[] = [];
 
-	for (const endpoint of endpoints) {
-		for (const method of methods) {
-			const endpointFindings = await checkEndpointAuth(request, endpoint, method);
-			findings.push(...endpointFindings);
+	let isolated: IsolatedContext;
+	try {
+		isolated = await createIsolatedContext(options);
+	} catch (error: unknown) {
+		return [
+			{
+				id: "auth-check-error",
+				category: "authentication",
+				severity: "high",
+				message: `Could not create an isolated request context for the auth check: ${error instanceof Error ? error.message : String(error)}`,
+				remediation:
+					"Kovar could not send unauthenticated requests, so authentication was NOT verified. Make sure @playwright/test is installed.",
+				url,
+			},
+		];
+	}
+
+	try {
+		for (const endpoint of endpoints) {
+			for (const method of methods) {
+				const endpointFindings = await checkEndpointAuth(isolated.request, endpoint, method);
+				findings.push(...endpointFindings);
+			}
 		}
+	} finally {
+		await isolated.dispose().catch(() => {});
 	}
 
 	return findings;
