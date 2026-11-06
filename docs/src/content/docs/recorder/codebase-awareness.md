@@ -11,6 +11,12 @@ kovar record https://your-app.com --source ./src
 
 ## Framework Setup
 
+The source plugins and `kovar record --source` parse your code with Babel, which is an optional peer dependency. Install it next to Kovar (Babel 7 or 8):
+
+```bash
+npm install -D @babel/parser @babel/traverse @babel/generator @babel/types
+```
+
 ### Vite
 
 ```typescript

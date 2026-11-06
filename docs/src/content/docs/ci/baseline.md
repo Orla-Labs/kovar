@@ -90,7 +90,7 @@ The simplest way to use baseline tracking is via the [GitHub Action](/ci/github-
 
 ```yaml
 - name: Run security check with baseline
-  uses: ./.github/actions/security-check
+  uses: Orla-Labs/kovar/.github/actions/security-check@v0.7.0
   with:
     url: "https://staging.your-app.com"
     baseline-path: ".kovar/baseline.json"

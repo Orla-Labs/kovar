@@ -57,7 +57,7 @@ npm run lint:fix       # Auto-fix lint issues
 - TypeScript strict mode, ES2022 target
 - Biome for formatting (tabs, 100 char line width)
 - No unnecessary comments — code should be self-documenting
-- No runtime dependencies — only peer dep on @playwright/test
+- No runtime dependencies. Required peer: @playwright/test. Optional peers: @modelcontextprotocol/sdk + better-sqlite3 (MCP server only) and @babel/* (vite/babel/next plugins, `record --source`). Never import optional peers from the core, root or reporter entries; scripts/smoke-pack.sh enforces this against the packed tarball.
 - Browser-side code lives in typed modules under `src/recorder/browser/`, bundled into IIFE strings at build time via `scripts/build-browser.ts`
 - All security checks return SecurityFinding[] arrays
 - Matchers use ExpectMatcherState, return { pass, message, name, expected, actual }

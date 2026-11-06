@@ -1,5 +1,91 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- GitHub Action (`.github/actions/security-check`) now works. It is a composite action that installs `@orlalabs/kovar` and `@playwright/test`, installs Chromium and runs the newly built and shipped `dist/ci/index.js`. Previously the entry was never built or published, crashed on `require` inside ESM, and depended on `playwright-core` without declaring it.
+- With a baseline, the action now fails only on **new** findings; previously `passed` ignored the baseline, so known findings blocked every PR. Findings that report a check could not run (`*-check-error`, `*-check-skipped`, `xss-no-forms`) always block and are never written to a baseline.
+- The action validates `fail-on` (case-insensitive). Previously any value other than an exact lowercase severity (for example `High`) made the gate compare against `undefined`, so nothing ever blocked and the job passed.
+- The action rejects unsupported `checks` values (for example `xss`) instead of silently skipping them and reporting a pass.
+- `@orlalabs/kovar/vite`, `/babel` and `/next` no longer fail with `ERR_MODULE_NOT_FOUND` for `@babel/*` from a clean install: the Babel packages are declared as optional peer dependencies (Babel 7 or 8).
+
+### Added
+- Action writes `kovar-report.json` (findings, gate result, baseline status, framework-specific remediation) and `kovar.sarif` (SARIF 2.1.0) to `output-dir`, exposes `json-path`, `sarif-path` and `blocking-count` outputs, writes the job summary, and updates a single PR comment instead of posting a new one per run.
+- `@orlalabs/kovar/ci/baseline` subpath export (was documented but not exported). `detectFramework` exported from `@orlalabs/kovar/core` (was documented but not exported).
+
+### Changed
+- **Breaking:** `@modelcontextprotocol/sdk` and `better-sqlite3` moved from `dependencies` to optional `peerDependencies`. Installing Kovar for its assertions now adds 4 packages instead of 134, with no native build. To use `kovar mcp`, `kovar mcp proxy`, `kovar ingest` or `@orlalabs/kovar/mcp`, run `npm install -D @modelcontextprotocol/sdk better-sqlite3`.
+- **Breaking:** `engines.node` raised from `>=18` to `>=20.19.0` (Playwright 1.65 requires Node 20+, and `better-sqlite3` 12 already refused Node 18). Build target raised to `node20`.
+- CI tests Node 20, 22 and 24 and Playwright from the supported floor through the latest release, and smoke-tests the packed tarball.
+
+## [0.6.0] - 2026-04-28
+
+Reconstructed from git history (`v0.6.0` tag).
+
+### Added
+- MCP tools: `append_events`, `assert_no_loops`, `assert_token_budget_per_step`, `assert_messages_match`, `assert_tool_order`, `assert_latency_under`, `diff_runs`.
+- `record_run` is atomic and accepts messages and per-event tokens. `replay_run` accepts a substitute map for canned tool-call results.
+- `kovar mcp proxy <cmd>`: sits between a harness and a child MCP server and records `tools/call` traffic.
+- `kovar ingest <file> --format <fmt>`: imports recorded sessions via adapters (`kovar-jsonl`, `claude-code`).
+
+### Changed
+- MCP dispatcher validates `inputSchema` at runtime and returns structured error codes (`INVALID_INPUT`, `RUN_NOT_FOUND`, ...).
+- `serverInfo.version` is read from `package.json`. Schema-version migration scaffold; v0.5.0 databases upgrade in place.
+
+## [0.5.0] - 2026-04-28
+
+Reconstructed from git history (`v0.5.0` tag).
+
+### Added
+- Local-first MCP server (`kovar mcp`, `@orlalabs/kovar/mcp`) with tools `record_run`, `assert_tool_called`, `assert_no_drift`, `assert_cost_under`, `replay_run`, `record_canonical`, `get_run`, `list_runs`. Runs are stored in SQLite at `~/.kovar/runs.db`.
+- Runtime dependencies `@modelcontextprotocol/sdk` and `better-sqlite3` (native).
+
+## [0.4.1] - 2026-03-26
+
+Reconstructed from git history (`v0.4.1` tag).
+
+### Added
+- Documentation site (Starlight) at kovar.orlalabs.com.
+
+### Fixed
+- `package.json` formatting for the release lint gate.
+
+## [0.4.0] - 2026-03-26
+
+Reconstructed from git history (`v0.4.0` tag).
+
+### Added
+- Remediation templates for XSS, CSRF, CORS and auth findings across six frameworks.
+- XSS payload concurrency control.
+- LLM exponential backoff (1s, 2s, 4s, 8s cap).
+- CI baseline tracking (new, existing and resolved findings), wired into the CI entry point and action inputs.
+
+### Changed
+- Shared matcher logic extracted (`filterFailures`, `formatMatcherMessage`).
+
+## [0.3.0] - 2026-03-26
+
+Reconstructed from git history (`v0.3.0` tag).
+
+### Added
+- API security checks and matchers: CSRF, CORS, auth.
+- Framework-specific remediation suggestions (Express, Fastify, Next.js, Koa, Hono).
+- Compliance mapping: OWASP ASVS 4.0.3 and PCI-DSS v4.0.
+- GitHub Action for security checks with PR comments and severity gates.
+- Accessibility checks (10 rules).
+- CWE/CVSS fields on `SecurityFinding`.
+
+### Changed
+- Security hardening: XSS dialog-handler race fix, recursive JSON sanitization in network capture, prompt-injection stripping, expanded input masking, dangerous-code pattern detection in generated tests.
+
+## [0.2.2] - 2026-03-23
+
+Reconstructed from git history (`v0.2.2` tag).
+
+### Changed
+- Browser IIFE scripts ship as standalone files in `dist/browser/` instead of strings inlined into `cli.js` (resolves Socket "obfuscated code" warning).
+- Release pipeline uses npm Trusted Publishing (OIDC) and requires CI to pass.
+
 ## [0.2.1] - 2026-03-23
 
 ### Fixed

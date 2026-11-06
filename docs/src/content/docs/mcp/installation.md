@@ -7,10 +7,10 @@ The kovar MCP server is shipped as part of the `@orlalabs/kovar` npm package. It
 
 ## Prerequisites
 
-- Node 18 or later
+- Node 20.19 or later
 - An MCP-capable host (Claude Code, Cursor, Codex, Antigravity, or any client that speaks the [MCP](https://modelcontextprotocol.io/) stdio protocol)
 
-The package ships compiled JavaScript — no source build is required on install.
+The package ships compiled JavaScript. The server's dependencies, `@modelcontextprotocol/sdk` and `better-sqlite3` (native), are optional peer dependencies: they are not installed with `@orlalabs/kovar` by default, so you install them next to it. Without them, `kovar mcp` exits with the install command to run.
 
 ## Install styles
 
@@ -19,7 +19,7 @@ There are two ways to launch the server.
 ### One-shot via npx
 
 ```bash
-npx -y @orlalabs/kovar mcp
+npx -y -p @orlalabs/kovar -p @modelcontextprotocol/sdk -p better-sqlite3 kovar mcp
 ```
 
 Convenient for trying things out. Caveat: a cold npm cache will compile `better-sqlite3` from source, which can take 30–60 seconds and may time out an MCP host's `initialize` handshake. Run it once standalone before pointing a host at it.
@@ -27,7 +27,7 @@ Convenient for trying things out. Caveat: a cold npm cache will compile `better-
 ### Global install
 
 ```bash
-npm i -g @orlalabs/kovar
+npm i -g @orlalabs/kovar @modelcontextprotocol/sdk better-sqlite3
 kovar mcp
 ```
 
@@ -59,7 +59,7 @@ Or, if you prefer not to install globally:
   "mcpServers": {
     "kovar": {
       "command": "npx",
-      "args": ["-y", "@orlalabs/kovar", "mcp"]
+      "args": ["-y", "-p", "@orlalabs/kovar", "-p", "@modelcontextprotocol/sdk", "-p", "better-sqlite3", "kovar", "mcp"]
     }
   }
 }
@@ -82,7 +82,7 @@ Or, if you prefer not to install globally:
 
 ### Codex / Antigravity / generic MCP client
 
-Any host that launches a stdio MCP server works. The shape of its config varies, but the launch command is the same: `kovar mcp` (global install) or `npx -y @orlalabs/kovar mcp` (one-shot).
+Any host that launches a stdio MCP server works. The shape of its config varies, but the launch command is the same: `kovar mcp` (global install) or `npx -y -p @orlalabs/kovar -p @modelcontextprotocol/sdk -p better-sqlite3 kovar mcp` (one-shot).
 
 ## DB path override
 

@@ -21,6 +21,22 @@ export interface BaselineDiff {
 	resolved: BaselineEntry[];
 }
 
+/** Could-not-run IDs that predate the -check-error / -check-skipped convention. */
+const COULD_NOT_RUN_IDS = new Set([
+	"xss-no-forms",
+	"csrf-check-unauthenticated",
+	"audit-page-closed",
+]);
+
+/**
+ * A finding that says a check could not run (endpoint unreachable, check
+ * skipped, nothing to test). It means "not verified", not "accepted risk", so
+ * it is never written to a baseline and never classified as existing.
+ */
+export function isCouldNotRun(finding: Pick<SecurityFinding, "id">): boolean {
+	return /-check-(error|skipped)$/.test(finding.id) || COULD_NOT_RUN_IDS.has(finding.id);
+}
+
 export function loadBaseline(filePath: string): BaselineFile | null {
 	try {
 		const raw = readFileSync(filePath, "utf-8");
@@ -50,9 +66,10 @@ export function diffFindings(
 	const baselineIds = new Set(baseline.entries.map((e) => e.id));
 	const currentIds = new Set(current.map((f) => f.id));
 
+	const isExisting = (f: SecurityFinding) => baselineIds.has(f.id) && !isCouldNotRun(f);
 	return {
-		new: current.filter((f) => !baselineIds.has(f.id)),
-		existing: current.filter((f) => baselineIds.has(f.id)),
+		new: current.filter((f) => !isExisting(f)),
+		existing: current.filter(isExisting),
 		resolved: baseline.entries.filter((e) => !currentIds.has(e.id)),
 	};
 }
@@ -62,11 +79,13 @@ export function createBaseline(findings: SecurityFinding[]): BaselineFile {
 	return {
 		version: 1,
 		timestamp,
-		entries: findings.map((f) => ({
-			id: f.id,
-			severity: f.severity,
-			url: f.url ?? "",
-			firstSeen: timestamp,
-		})),
+		entries: findings
+			.filter((f) => !isCouldNotRun(f))
+			.map((f) => ({
+				id: f.id,
+				severity: f.severity,
+				url: f.url ?? "",
+				firstSeen: timestamp,
+			})),
 	};
 }

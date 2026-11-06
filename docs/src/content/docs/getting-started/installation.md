@@ -9,7 +9,13 @@ description: How to install and set up Kovar in your Playwright project
 npm install -D @orlalabs/kovar
 ```
 
-Kovar requires `@playwright/test` >= 1.40.0 as a peer dependency. If you don't have Playwright installed yet:
+Kovar requires Node.js 20.19 or later and `@playwright/test` >= 1.40.0 as a peer dependency. It is tested against Playwright 1.40 through 1.65 on Node 22 and 24.
+
+:::note
+Playwright 1.52.0 hangs at startup on Node 24 in projects with `"type": "module"`. This is a Playwright bug and is fixed in 1.53.0. Use any other version.
+:::
+
+If you don't have Playwright installed yet:
 
 ```bash
 npm install -D @playwright/test
