@@ -67,12 +67,11 @@ The generated code is validated for:
 
 - No `eval()`, `require()`, `child_process`, or `fs` operations.
 - No hardcoded secrets (passwords, API keys, tokens).
-- At least one assertion per test.
-- Valid TypeScript syntax.
+- The spec mentions `expect`, `test(` and `page` (a text check; it does not verify that each test has an assertion, and TypeScript syntax is not parsed).
 
 ## Fallback
 
-If AI generation fails (network error, validation failure, malformed output), the recorder saves the raw recording as a JSON file in a `.recording` directory. You can use this data to:
+If AI generation fails (network error, validation failure, malformed output), the recorder saves the raw recording as JSON in `<output>/<name>.recording.spec.ts`, next to your tests. Despite the extension it is not a test; exclude it with `testIgnore` or delete it. You can use this data to:
 
 - Retry generation with a different model.
 - Manually write tests using the captured actions and locator metadata.

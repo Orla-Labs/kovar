@@ -10,7 +10,7 @@ The result: zero-instrumentation capture of any harness's tool traffic.
 ## Command
 
 ```bash
-kovar mcp proxy [options] <command> [args...]
+kovar mcp proxy [options] -- <command> [args...]
 ```
 
 | Option | Type | Description | Default |
@@ -19,26 +19,26 @@ kovar mcp proxy [options] <command> [args...]
 | `--run-id` | string | Run id to use. | Auto-generated `proxy-<ms>-<rand>` |
 | `--db-path` | string | Override SQLite path. | `~/.kovar/runs.db` (or `KOVAR_DB_PATH`) |
 
-Everything after the options is the child command — its name and args are spawned verbatim.
+Everything after `--` is the child command — its name and args are spawned verbatim. The `--` is required whenever the child command has its own flags (`-y`, `--port`, `-h`, ...): without it, kovar parses them as its own options and exits with `ERR_PARSE_ARGS_UNKNOWN_OPTION` (or, for `-h`, prints kovar's help).
 
 ## Examples
 
 Proxy a published MCP server:
 
 ```bash
-kovar mcp proxy --agent-id research-bot npx -y @some/mcp-server
+kovar mcp proxy --agent-id research-bot -- npx -y @some/mcp-server
 ```
 
 Proxy a local Node script:
 
 ```bash
-kovar mcp proxy --run-id today-001 node ./tools/my-server.js --port 0
+kovar mcp proxy --run-id today-001 -- node ./tools/my-server.js --port 0
 ```
 
 Override the DB to keep proxy runs separate:
 
 ```bash
-kovar mcp proxy --db-path /tmp/proxy-runs.db npx -y @some/mcp-server
+kovar mcp proxy --db-path /tmp/proxy-runs.db -- npx -y @some/mcp-server
 ```
 
 ## How it works

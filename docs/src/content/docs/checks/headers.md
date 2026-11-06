@@ -54,11 +54,16 @@ await expect(response).toHaveSecureHeaders({
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `skip` | `string[]` | Header names to skip |
-| `only` | `string[]` | Check only these headers |
+| `skip` | `string[]` | Header names to skip (full header names, case-insensitive, e.g. `"strict-transport-security"`; in 0.6.0 abbreviations like `"HSTS"` are silently ignored) |
+| `only` | `string[]` | Check only these headers (same naming rule as `skip`) |
 | `requiredCSPDirectives` | `string[]` | CSP directives that must be present |
 | `minHSTSMaxAge` | `number` | Minimum HSTS max-age in seconds (default: 31536000) |
-| `allowXFrameOptionsSameOrigin` | `boolean` | Allow `SAMEORIGIN` for X-Frame-Options (default: `false`) |
+
+`X-Frame-Options: SAMEORIGIN` is always accepted. (An `allowXFrameOptionsSameOrigin` option exists in the TypeScript types but has no effect in 0.6.0.)
+
+## Local Development Over HTTP
+
+HSTS is reported as **critical** when missing, including on `http://localhost`, where browsers ignore it anyway. Run the check against an HTTPS environment, or skip it locally: `toHaveSecureHeaders({ skip: ["strict-transport-security"] })`.
 
 ## API Endpoint Example
 
@@ -73,9 +78,11 @@ test("API endpoint has secure headers", async ({ request }) => {
 });
 ```
 
+Note that the remaining rules (including CSP and HSTS) still apply to API responses, so a JSON endpoint without those headers will still fail.
+
 ## Using the Fixture
 
-For programmatic control, use the [security fixture](/api/fixture):
+For programmatic control, use the [security fixture](/api/fixture). The fixture re-requests `page.url()` through Playwright's `request` context, which does not carry the browser's cookies; for pages behind login, prefer `expect(response).toHaveSecureHeaders()` on the real navigation response.
 
 ```typescript
 test("check headers programmatically", async ({ page, security }) => {

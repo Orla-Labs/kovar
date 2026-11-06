@@ -5,11 +5,15 @@ description: Programmatic access to security checks with assert and check modes
 
 The `security` fixture gives programmatic access to all security checks. It's injected automatically when you import from `@orlalabs/kovar`.
 
+:::caution
+The fixture's checks do not reuse the page's own response. `security.headers` re-requests `page.url()`, and `csrf`/`cors`/`auth` send requests to `page.url()`, all through Playwright's `request` context, which does **not** share the browser's cookies. On a page behind login, `security.headers` can end up checking the login page you get redirected to. For authenticated pages, use `expect(response).toHaveSecureHeaders()` on the navigation response.
+:::
+
 ## Two Modes
 
 Each check category supports two modes:
 
-- **`.assert()`** -- throws if any critical or high severity findings exist. Use this for pass/fail tests.
+- **`.assert()`** -- throws a `SecurityAssertionError` (listing each finding with a `Fix:` line) if any critical or high severity findings exist. Use this for pass/fail tests.
 - **`.check()`** -- returns all findings without throwing, so you can inspect and filter them.
 
 ## Usage
@@ -20,15 +24,14 @@ import { test, expect } from "@orlalabs/kovar";
 test("verify security after login", async ({ page, security }) => {
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email" }).fill("user@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("password");
+  await page.getByLabel("Password").fill("password");
   await page.getByRole("button", { name: "Sign In" }).click();
   await page.waitForURL("/dashboard");
 
   // Throws on critical/high findings:
   await security.headers.assert();
   await security.cookies.assert();
-  await security.csrf.assert();
-  await security.auth.assert();
+  // csrf/auth send real POST/PUT/DELETE requests to page.url() -- see their pages
 
   // Or inspect findings manually:
   const corsFindings = await security.cors.check();

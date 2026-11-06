@@ -3,7 +3,7 @@ title: Recording Tools
 description: record_run and append_events
 ---
 
-Two tools write run data into the store. `record_run` creates a new run; `append_events` extends an existing one. Both are atomic — the SQLite transaction wraps the entire write.
+Two tools write run data into the store. `record_run` creates a new run; `append_events` extends an existing one. Events (and, for `record_run`, the run row) are written in one SQLite transaction; messages are written in a second transaction afterwards, so a failure while writing messages can leave the run and its events in place.
 
 ## `record_run`
 
@@ -52,7 +52,7 @@ Message shape:
 
 ### Notes
 
-- The write is one SQLite transaction. Either every row commits or nothing does.
+- The run row and events commit in one SQLite transaction; messages commit in a separate one afterwards.
 - Sequence numbers (`seq`) are assigned in input order, starting at 0.
 - Calling `record_run` twice with the same `run_id` errors. Use `append_events` to extend.
 - If `events` is empty, `started_at` and `ended_at` both default to `Date.now()`.

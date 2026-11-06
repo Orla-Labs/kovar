@@ -36,16 +36,16 @@ CWE mappings:
 
 ```typescript
 await expect(request).toHaveSecureCORS("/api/data", {
-  trustedOrigins: ["https://app.example.com"],        // origins that should be allowed
   dangerousOrigins: ["null", "http://evil.com"],      // origins to test against (default: ["null", "http://evil.com"])
 });
 ```
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `trustedOrigins` | `string[]` | Origins that should be allowed by the CORS policy |
 | `dangerousOrigins` | `string[]` | Origins to test against (default: `["null", "http://evil.com"]`) |
-| `url` | `string` | URL to test (defaults to current page URL) |
+| `url` | `string` | URL to test; overrides the URL argument (with the fixture, defaults to the current page URL) |
+
+A `trustedOrigins` option exists in the TypeScript types but has no effect in 0.6.0: the check only tests `dangerousOrigins`.
 
 ## Using the Fixture
 

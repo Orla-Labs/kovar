@@ -36,6 +36,30 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## Running Kovar Tests in CI
+
+The action above scans one URL for headers and cookies. Your Kovar matchers (XSS, CSRF, CORS, auth, and anything that needs a logged-in page) run inside your Playwright suite, so the CI setup is the same as for any Playwright suite:
+
+```yaml
+# .github/workflows/e2e.yml
+name: E2E
+on: [pull_request]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+```
+
+A failing security matcher fails the job like any other assertion. Add the [Reporter](/ci/reporter) for a score card in the log.
+
 ## Action Inputs
 
 | Input | Description | Required | Default |
@@ -157,4 +181,4 @@ You can use the outputs in subsequent steps:
 
 - [Baseline Tracking](/ci/baseline/) -- track security baselines across PRs.
 - [Reporter](/ci/reporter/) -- Playwright reporter for local and CI test runs.
-- [Full Audit](/api/audit/) -- the audit that powers the GitHub Action.
+- [Full Audit](/api/audit/) -- the in-test audit (the action uses its own headers/cookies scan, not `security.audit()`).

@@ -35,7 +35,13 @@ export class SecurityAssertionError extends Error {
 		public readonly url: string,
 	) {
 		const summary = summarizeSeverities(findings);
-		const details = findings.map((f) => `  [${f.severity.toUpperCase()}] ${f.message}`).join("\n");
+		const details = findings
+			.map((f) => {
+				const subject = f.header ?? f.cookie ?? "";
+				const prefix = subject ? `${subject}: ` : "";
+				return `  [${f.severity.toUpperCase()}] ${prefix}${f.message}\n           Fix: ${f.remediation}`;
+			})
+			.join("\n");
 		super(`Security assertion failed (${summary}) at ${url}:\n${details}`);
 		this.name = "SecurityAssertionError";
 	}

@@ -20,9 +20,9 @@ interface SecurityFinding {
   payload?: string;            // for XSS findings
   evidence?: string;           // for XSS findings
   cweId?: string;              // e.g. "CWE-352", "CWE-942"
-  cvssScore?: number;          // CVSS v3.1 base score (0-10)
-  cvssVector?: string;         // CVSS v3.1 vector string
-  references?: string[];       // links to relevant standards or docs
+  cvssScore?: number;          // reserved; not populated by any check in 0.6.0
+  cvssVector?: string;         // reserved; not populated by any check in 0.6.0
+  references?: string[];       // reserved; not populated by any check in 0.6.0
 }
 ```
 
@@ -41,9 +41,9 @@ interface SecurityFinding {
 | `payload` | `string?` | XSS payload that triggered the finding |
 | `evidence` | `string?` | Evidence of XSS reflection |
 | `cweId` | `string?` | CWE identifier (e.g. `"CWE-352"`) |
-| `cvssScore` | `number?` | CVSS v3.1 base score (0-10) |
-| `cvssVector` | `string?` | CVSS v3.1 vector string |
-| `references` | `string[]?` | Links to relevant standards or documentation |
+| `cvssScore` | `number?` | Reserved for a CVSS v3.1 base score; not populated in 0.6.0 |
+| `cvssVector` | `string?` | Reserved for a CVSS v3.1 vector; not populated in 0.6.0 |
+| `references` | `string[]?` | Reserved; not populated in 0.6.0 (remediation suggestions carry their own `references`) |
 
 ## FindingCategory
 

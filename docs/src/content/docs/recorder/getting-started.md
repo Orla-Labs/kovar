@@ -33,10 +33,9 @@ Click **Stop** when you're done. Kovar sends the captured session to the AI, whi
 ```
 tests/
   pages/
-    login.page.ts          # Page object class
-    dashboard.page.ts      # One per page visited
-  login-dashboard.spec.ts  # Test spec
-  .env.example             # Credential template
+    login-dashboard.page.ts  # Page object classes (one class per page, all in one file)
+  login-dashboard.spec.ts    # Test spec
+  .env.example               # Credential template (only if credentials were detected)
 ```
 
 ## Run the Generated Test
@@ -51,9 +50,9 @@ npx playwright test login-dashboard.spec.ts
 
 - **Log in first** -- if your app requires authentication, the recording captures the login flow and extracts credentials into `process.env.*` variables.
 - **Use `--name`** for meaningful file names. Without it, the name is derived from the URL path (e.g., `/checkout/payment` -> `checkout-payment.spec.ts`).
-- **Use `--source`** for React/Vue/Svelte apps. The confidence jump from 0.4 (CSS) to 0.97 (source-verified testId) makes a real difference in test stability. See [Codebase Awareness](/recorder/codebase-awareness).
+- **Use `--source`** for React apps (JSX/TSX only; point it at the project root and install the Babel packages first). The confidence jump from 0.4 (CSS) to 0.97 (source-verified testId) makes a real difference in test stability. See [Codebase Awareness](/recorder/codebase-awareness).
 - **Review generated code** before committing. The AI is good but not perfect -- you may want to adjust assertions or add waits.
-- **Add `.recording` to `.gitignore`** -- if AI generation fails, the fallback JSON file contains session data (sanitized but rich with URLs, element text, and form field names).
+- **If AI generation fails**, Kovar writes the raw session as JSON to `<output>/<name>.recording.spec.ts` (sanitized but rich with URLs, element text, and form field names). It is not a valid test; Playwright will try to load it. Delete it or add `*.recording.spec.ts` to `.gitignore` and to `testIgnore` in your Playwright config.
 
 ## Next Steps
 

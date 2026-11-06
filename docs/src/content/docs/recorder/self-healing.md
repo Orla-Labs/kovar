@@ -3,7 +3,7 @@ title: Self-Healing
 description: Auto-fix generated test failures with AI-powered self-healing
 ---
 
-When you pass `--heal`, Kovar runs the generated test immediately after recording. If the test fails, it sends the failure output back to the AI, which rewrites the test code to fix the issue. This loop repeats up to `--heal-attempts` times (default: 3).
+When you pass `--heal`, Kovar runs the generated test immediately after recording. If the test fails, it sends the failure output back to the AI, which rewrites the test code to fix the issue. `--heal-attempts` (default: 3) is the total number of **test runs**, including the first one, so the AI is asked for a fix at most `--heal-attempts - 1` times (2 by default). `--heal-attempts 1` runs the test once and never heals.
 
 :::caution[Generated code runs on your machine]
 `--heal` executes AI-written test code immediately, before you have reviewed it. That code is shaped by the content of the site you recorded. Kovar validates it and runs it in a child process that receives only `PATH`/`HOME`-style variables, proxy settings, `BASE_URL` and `TEST_*`; your other environment variables (CI secrets, API keys, `NODE_OPTIONS`) are not passed. If your `playwright.config` needs more (for example a `webServer` that reads `DATABASE_URL`), list the names in `KOVAR_HEAL_ENV=DATABASE_URL,PORT`. Validation is defense in depth, not a sandbox: only use `--heal` on sites you trust, and review generated files before committing them.
@@ -15,7 +15,7 @@ When you pass `--heal`, Kovar runs the generated test immediately after recordin
 kovar record https://your-app.com --heal
 ```
 
-Allow up to 5 healing attempts:
+Allow up to 5 test runs (4 AI fixes):
 
 ```bash
 kovar record https://your-app.com --heal --heal-attempts 5
@@ -43,7 +43,7 @@ Each healing attempt makes an additional LLM call, so costs scale with the numbe
 
 ## When Healing Fails
 
-If the test still fails after all attempts, Kovar prints the last error and exits. You can:
+If the test still fails after all attempts, Kovar prints the first 200 characters of the last error and exits with code **0**, so a CI job will not fail on it. You can:
 
 - Review the error output and fix manually.
 - Run `--heal` again with a higher `--heal-attempts` value.

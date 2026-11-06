@@ -20,12 +20,12 @@ const json = formatComplianceReport(report, "json");
 
 ## Markdown Format
 
-Full report with headings, tables, and remediation details. Ideal for documentation, wiki pages, or PR comments.
+Full report with headings, tables, and remediation details. Ideal for documentation, wiki pages, or PR comments. Note that `Coverage` and `pass` do not account for checks that were never run -- see the caveats on the [OWASP ASVS](/compliance/owasp-asvs) page.
 
 ```markdown
 # OWASP ASVS 4.0.3 Compliance Report
 
-**Date:** 2026-03-26
+**Date:** 2026-11-06
 **Level:** 1
 
 ## Summary
@@ -38,7 +38,7 @@ Full report with headings, tables, and remediation details. Ideal for documentat
 ## Failed Requirements
 
 ### V14.4.1 -- HTTP Security Headers [FAIL]
-- [CRITICAL] Missing Strict-Transport-Security header
+- [CRITICAL] HSTS header is missing
 ```
 
 ## Text Format
