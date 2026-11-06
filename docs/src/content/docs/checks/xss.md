@@ -3,6 +3,10 @@ title: XSS
 description: Test form inputs against reflected XSS payloads with toBeResilientToXSS
 ---
 
+:::caution[Scope]
+Detects server-side reflected XSS in HTML forms; not DOM/SPA, stored, or filter-bypass XSS. See [What Kovar does not catch](/reference/limitations).
+:::
+
 The `toBeResilientToXSS()` matcher tests form inputs against XSS payloads. By default it uses **API-first injection** -- submitting payloads via HTTP and analyzing response bodies for unescaped reflection, without causing DOM side effects. It falls back to DOM testing with `alert()` dialog detection when needed.
 
 ## Basic Usage
@@ -53,7 +57,7 @@ await expect(page).toBeResilientToXSS({
 
 ## What It Needs From Your Page
 
-The scanner discovers `<form>` elements (or the element matched by `selector`). Inputs that are not inside a `<form>` -- common in SPAs that handle input with JavaScript -- are not tested. When no form is found, the matcher fails with `[INFO] No forms found on the page to test for XSS`; check that the page has finished rendering and that `selector` is correct. Inside `security.audit()` and `security.xss.assert()` that info finding does **not** fail the test, so a page with no forms passes silently there.
+The scanner discovers `<form>` elements (or the element matched by `selector`). Inputs that are not inside a `<form>` -- common in SPAs that handle input with JavaScript -- are not tested. When no form is found, Kovar reports `xss-no-forms` as a **high** "could not run" finding, so the matcher, `security.xss.assert()` and `security.audit({ includeXSS: true })` all fail rather than pass without testing anything. Check that the page has finished rendering and that `selector` is correct. If every payload request fails (for example the form posts to an unreachable host), Kovar reports `xss-check-error`, also high.
 
 ## API-First vs DOM Testing
 

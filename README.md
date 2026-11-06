@@ -29,7 +29,7 @@ Expect the first run to be red: the matcher fails on critical/high findings and 
 
 - **[HTTP Headers](https://kovar.orlalabs.com/checks/headers)** -- 12 OWASP-aligned header checks with CSP validation
 - **[Cookie Flags](https://kovar.orlalabs.com/checks/cookies)** -- session cookie security (Secure, HttpOnly, SameSite, prefix validation)
-- **[Reflected XSS](https://kovar.orlalabs.com/checks/xss)** -- 40 polyglot payloads with API-first and DOM testing
+- **[Reflected XSS](https://kovar.orlalabs.com/checks/xss)** -- Detects server-side reflected XSS in HTML forms; not DOM/SPA, stored, or filter-bypass XSS.
 - **[CSRF Protection](https://kovar.orlalabs.com/checks/csrf)** -- verifies state-changing endpoints reject tokenless requests
 - **[CORS Configuration](https://kovar.orlalabs.com/checks/cors)** -- tests for origin reflection and wildcard misconfigurations
 - **[Authentication](https://kovar.orlalabs.com/checks/auth)** -- verifies protected endpoints reject unauthenticated requests

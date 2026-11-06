@@ -10,7 +10,7 @@ Kovar is a **security regression testing** tool, not a comprehensive security sc
 - Missing or misconfigured HTTP security headers (12 OWASP-aligned checks)
 - Weak cookie security flags (Secure, HttpOnly, SameSite, prefix validation)
 - Overly permissive CSP (wildcards, unsafe-inline without nonces, unsafe-eval)
-- Reflected XSS via form inputs (40 polyglot payloads, API-first and DOM testing)
+- Reflected XSS: Detects server-side reflected XSS in HTML forms; not DOM/SPA, stored, or filter-bypass XSS.
 - CSRF protection gaps (missing tokens, weak SameSite, unprotected state-changing endpoints)
 - CORS misconfigurations (origin reflection, wildcard origins, permissive headers/methods)
 - Missing authentication on protected endpoints (with info-leak detection on error responses)
@@ -18,8 +18,10 @@ Kovar is a **security regression testing** tool, not a comprehensive security sc
 
 ## What It Does NOT Catch
 
-- DOM-based XSS that doesn't trigger `alert()`
-- Stored XSS
+- DOM-based and SPA XSS, where client-side JavaScript sends the input to an API and writes the result into the page
+- Stored XSS (the payload is saved and rendered on a different page or later request)
+- Filter-bypass XSS (for example a blocklist that strips `alert` but leaves `<img onerror=...>` markup intact)
+- Markup injection that a CSP blocks from executing, in DOM mode
 - Blind injection vulnerabilities (time-based, out-of-band)
 - Open redirects
 - Authorization/privilege escalation

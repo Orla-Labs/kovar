@@ -24,7 +24,7 @@ Kovar's security module checks seven categories:
 
 - **HTTP Headers** -- 12 OWASP-aligned header checks with CSP validation. See [Headers](/checks/headers).
 - **Cookie Flags** -- Session cookie security (Secure, HttpOnly, SameSite, prefix validation). See [Cookies](/checks/cookies).
-- **Reflected XSS** -- 40 polyglot payloads with API-first and DOM testing. See [XSS](/checks/xss).
+- **Reflected XSS** -- Detects server-side reflected XSS in HTML forms; not DOM/SPA, stored, or filter-bypass XSS. See [XSS](/checks/xss).
 - **CSRF Protection** -- Verifies state-changing endpoints reject tokenless requests. See [CSRF](/checks/csrf).
 - **CORS Configuration** -- Tests for origin reflection, wildcard misconfigurations. See [CORS](/checks/cors).
 - **Authentication Enforcement** -- Verifies protected endpoints reject unauthenticated requests. See [Authentication](/checks/auth).
