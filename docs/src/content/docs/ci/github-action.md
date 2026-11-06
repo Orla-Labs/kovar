@@ -98,7 +98,7 @@ A failing security matcher fails the job like any other assertion. Add the [Repo
 Every run writes two files to `output-dir`:
 
 - `kovar-report.json`: findings with `blocking`, `baseline` (`new`/`existing`/`none`) and `couldNotRun` flags, the gate result, resolved baseline entries, and framework-specific remediation suggestions.
-- `kovar.sarif`: SARIF 2.1.0, one rule per finding ID, with `security-severity` and CWE tags. It validates against the SARIF schema. Uploading it to GitHub code scanning has not been tested yet: findings are located by URL, not by a file in your repository.
+- `kovar.sarif`: SARIF 2.1.0, one rule per finding ID, with `security-severity` and CWE tags. It validates against the SARIF schema and uploads to GitHub code scanning (`github/codeql-action/upload-sarif`). Code scanning only accepts files in your repository as locations, so each result is anchored to the `framework-package-json` file and names the scanned URL in its message and `properties.url`.
 
 The same Markdown as the PR comment is written to the job summary. The PR comment is updated in place on each run rather than posted again. Commenting needs `pull-requests: write` on the job token. On pull requests from forks the token is read-only, so the action logs a warning and skips the comment; the job summary and the files are still written.
 

@@ -123,14 +123,18 @@ const SECURITY_SEVERITY: Record<Severity, string> = {
 };
 
 /**
- * SARIF 2.1.0. Findings are about a URL, not a source file, so each result
- * carries the scanned URL as its artifact location and a stable
- * partialFingerprint (finding id + URL) for de-duplication across runs.
+ * SARIF 2.1.0. Findings are about a URL, not a source file. GitHub code
+ * scanning only accepts repository files as locations (an http:// artifact
+ * URI is rejected), so each result is anchored to a repo-relative file
+ * (`locationUri`, default `package.json`) and carries the scanned URL in its
+ * message and `properties.url`. The partialFingerprint (finding id + URL)
+ * keeps de-duplication per URL across runs.
  */
 export function toSarif(
 	findings: SecurityFinding[],
-	options: { url: string; version: string },
+	options: { url: string; version: string; locationUri?: string },
 ): Record<string, unknown> {
+	const locationUri = (options.locationUri ?? "package.json").replace(/^\.?\/+/, "");
 	const rules = new Map<string, Record<string, unknown>>();
 	for (const f of findings) {
 		if (rules.has(f.id)) continue;
@@ -171,9 +175,16 @@ export function toSarif(
 						ruleId: f.id,
 						ruleIndex: ruleIds.indexOf(f.id),
 						level: SARIF_LEVEL[f.severity],
-						message: { text: `${f.message}\n\nFix: ${f.remediation}` },
-						locations: [{ physicalLocation: { artifactLocation: { uri: target } } }],
+						message: { text: `${f.message} (at ${target})\n\nFix: ${f.remediation}` },
+						locations: [
+							{
+								physicalLocation: {
+									artifactLocation: { uri: locationUri, uriBaseId: "%SRCROOT%" },
+								},
+							},
+						],
 						partialFingerprints: { "kovarFinding/v1": `${f.id}|${target}` },
+						properties: { url: target },
 					};
 				}),
 			},

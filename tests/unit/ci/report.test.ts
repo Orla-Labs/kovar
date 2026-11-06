@@ -116,6 +116,12 @@ describe("buildJsonReport", () => {
 	});
 });
 
+type SarifResult = {
+	locations: { physicalLocation: { artifactLocation: { uri: string; uriBaseId?: string } } }[];
+	properties: { url: string };
+	message: { text: string };
+};
+
 describe("toSarif", () => {
 	it("emits SARIF 2.1.0 with one rule per id, levels, and fingerprints", () => {
 		const findings = [
@@ -143,6 +149,29 @@ describe("toSarif", () => {
 			"kovarFinding/v1": "header-missing-csp|https://x.test/a",
 		});
 		expect(run?.results[2]?.ruleIndex).toBe(1);
+	});
+
+	it("anchors results to a repo file (GitHub rejects http artifact URIs) and keeps the URL", () => {
+		const sarif = toSarif([{ ...f("header-missing-csp"), url: "http://localhost:4789/x" }], {
+			url: "http://localhost:4789",
+			version: "1.0.0",
+			locationUri: "./web/package.json",
+		}) as { runs: { results: SarifResult[] }[] };
+		const r = sarif.runs[0]?.results[0];
+		const loc = r?.locations[0].physicalLocation.artifactLocation;
+		expect(loc).toEqual({ uri: "web/package.json", uriBaseId: "%SRCROOT%" });
+		expect(JSON.stringify(sarif)).not.toMatch(/"uri":\s*"https?:/);
+		expect(r?.properties.url).toBe("http://localhost:4789/x");
+		expect(r?.message.text).toContain("http://localhost:4789/x");
+	});
+
+	it("defaults the location to package.json", () => {
+		const sarif = toSarif([f("header-missing-csp")], { url: "https://x.test", version: "1" }) as {
+			runs: { results: SarifResult[] }[];
+		};
+		expect(sarif.runs[0]?.results[0]?.locations[0].physicalLocation.artifactLocation.uri).toBe(
+			"package.json",
+		);
 	});
 });
 

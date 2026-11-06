@@ -42,6 +42,8 @@ Focus release: correct checks, a working GitHub Action, a 4-package install and 
 
 ### Fixed
 
+- **GitHub Action SARIF now uploads to code scanning.** Results were located by the scanned `http(s)://` URL, which GitHub rejects ("SARIF URI scheme did not match the checkout URI scheme"). Each result is now anchored to the `framework-package-json` file and carries the URL in its message and `properties.url`.
+
 - **Detection accuracy.** Against a 45-case known-good / known-vulnerable fixture, 0.6.0 was wrong on 33 cases. On the 57-case suite that now runs in CI, 52 pass and 5 are known gaps kept visible as `test.fail` (DOM/SPA, stored and filter-bypass XSS). Main fixes:
   - **Auth:** stopped following redirects, so redirect-to-login is no longer "unprotected". Unreachable endpoints are reported. An auth-setup project's `storageState` no longer makes protected endpoints look unprotected.
   - **XSS:** submits hidden fields, so CSRF-token forms (Rails/Django/Laravel) are tested. Inspects 4xx responses. Uses context-aware reflection to remove false positives. Fixed DOM mode (typeless buttons, `goBack` hang).

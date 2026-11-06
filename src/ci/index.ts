@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { analyzeCookies, mapPlaywrightCookies } from "../checks/cookies.js";
 import { analyzeHeaders } from "../checks/headers.js";
 import { detectFramework } from "../remediation/frameworks.js";
@@ -72,6 +72,13 @@ export async function runSecurityCheck(options: CICheckOptions): Promise<CICheck
 		diff,
 		blocking: gate.blocking,
 	};
+}
+
+/** Path relative to the checked-out repo, for SARIF locations GitHub can map to a file. */
+function repoRelative(path: string): string {
+	const root = process.env.GITHUB_WORKSPACE;
+	if (root && isAbsolute(path)) return relative(root, path) || "package.json";
+	return path;
 }
 
 function getInput(name: string, fallback?: string): string {
@@ -171,7 +178,14 @@ async function main(): Promise<void> {
 	const jsonPath = join(outputDir, "kovar-report.json");
 	const sarifPath = join(outputDir, "kovar.sarif");
 	writeFileSync(jsonPath, JSON.stringify(report, null, 2));
-	writeFileSync(sarifPath, JSON.stringify(toSarif(result.findings, { url, version }), null, 2));
+	writeFileSync(
+		sarifPath,
+		JSON.stringify(
+			toSarif(result.findings, { url, version, locationUri: repoRelative(frameworkPkg) }),
+			null,
+			2,
+		),
+	);
 
 	setOutput("score", String(result.score));
 	setOutput("findings-count", String(result.findings.length));
