@@ -44,6 +44,31 @@ function parseCliArgs() {
 
 type CliValues = Record<string, string | boolean | undefined>;
 
+const MCP_PEERS = ["@modelcontextprotocol/sdk", "better-sqlite3"];
+
+/**
+ * The MCP server's dependencies are optional peers so the core assertion library
+ * installs without a native SQLite build. Turn a missing peer into an actionable error.
+ */
+async function loadMcp(): Promise<typeof import("./mcp/index.js")> {
+	try {
+		return await import("./mcp/index.js");
+	} catch (error) {
+		const code = (error as NodeJS.ErrnoException)?.code;
+		const message = error instanceof Error ? error.message : String(error);
+		if (
+			(code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") &&
+			MCP_PEERS.some((p) => message.includes(p))
+		) {
+			console.error(
+				`\n  ✗ The Kovar MCP server needs optional dependencies that are not installed.\n    Run: npm install -D ${MCP_PEERS.join(" ")}\n`,
+			);
+			process.exit(1);
+		}
+		throw error;
+	}
+}
+
 async function runMcpProxy(positionals: string[], values: CliValues): Promise<void> {
 	const childCommand = positionals[2];
 	if (!childCommand) {
@@ -53,7 +78,7 @@ async function runMcpProxy(positionals: string[], values: CliValues): Promise<vo
 		process.exit(1);
 	}
 	const childArgs = positionals.slice(3);
-	const { startProxyServer } = await import("./mcp/index.js");
+	const { startProxyServer } = await loadMcp();
 	const dbPath = values["db-path"] as string | undefined;
 	const agentId = values["agent-id"] as string | undefined;
 	const runId = values["run-id"] as string | undefined;
@@ -73,7 +98,7 @@ async function runMcpProxy(positionals: string[], values: CliValues): Promise<vo
 }
 
 async function runMcpServer(values: CliValues): Promise<void> {
-	const { startMcpServer } = await import("./mcp/index.js");
+	const { startMcpServer } = await loadMcp();
 	const dbPath = values["db-path"] as string | undefined;
 	try {
 		await startMcpServer(dbPath ? { dbPath } : {});
@@ -95,7 +120,7 @@ async function runIngest(positionals: string[], values: CliValues): Promise<void
 		console.error("Error: --format is required.\n  Usage: kovar ingest <file> --format <fmt>\n");
 		process.exit(1);
 	}
-	const { ingestFile } = await import("./mcp/index.js");
+	const { ingestFile } = await loadMcp();
 	const dbPath = values["db-path"] as string | undefined;
 	const agentId = values["agent-id"] as string | undefined;
 	const runId = values["run-id"] as string | undefined;
