@@ -1,13 +1,14 @@
 import type { SourceMetadata } from "../source/types.js";
 import {
 	extractPOMCode,
+	sanitizeTestName,
 	testNameFromUrl,
 	validateCode,
 	validateSpecCode,
 	writeGeneratedFiles,
 	writeTestFile,
 } from "./codegen.js";
-import { buildPrompt } from "./llm/prompt.js";
+import { buildPrompt, sanitizeUrl } from "./llm/prompt.js";
 import type { LLMProvider } from "./llm/types.js";
 import type { RecordedAction, RecordedRequest, SessionData } from "./types.js";
 
@@ -22,6 +23,7 @@ function redactSessionData(session: SessionData): SessionData {
 		}
 		return {
 			...req,
+			url: sanitizeUrl(req.url),
 			requestPostData: req.requestPostData ? "[REDACTED]" : null,
 			responseBody: null,
 			requestHeaders: redactedRequestHeaders,
@@ -30,14 +32,18 @@ function redactSessionData(session: SessionData): SessionData {
 	});
 
 	const redactedActions: RecordedAction[] = session.actions.map((action) => {
-		if (action.value !== undefined && action.value !== "[MASKED]") {
-			return { ...action, value: "[REDACTED]" };
-		}
-		return { ...action };
+		const out: RecordedAction = { ...action };
+		if (action.url) out.url = sanitizeUrl(action.url);
+		if (action.delta?.newUrl)
+			out.delta = { ...action.delta, newUrl: sanitizeUrl(action.delta.newUrl) };
+		if (action.value !== undefined && action.value !== "[MASKED]") out.value = "[REDACTED]";
+		return out;
 	});
 
 	return {
 		...session,
+		startUrl: sanitizeUrl(session.startUrl),
+		finalUrl: sanitizeUrl(session.finalUrl),
 		requests: redactedRequests,
 		actions: redactedActions,
 	};
@@ -46,6 +52,8 @@ function redactSessionData(session: SessionData): SessionData {
 export interface GenerateResult {
 	specPath: string;
 	pagePath: string | null;
+	/** True when LLM generation failed and only the raw recording was saved. */
+	fallback?: boolean;
 }
 
 export class TestGenerator {
@@ -59,7 +67,7 @@ export class TestGenerator {
 		testName?: string,
 		sourceMap?: Map<number, SourceMetadata>,
 	): Promise<GenerateResult> {
-		const resolvedName = testName || testNameFromUrl(session.startUrl);
+		const resolvedName = testName ? sanitizeTestName(testName) : testNameFromUrl(session.startUrl);
 
 		console.log("  ✦ Generating Page Object Model test with AI...");
 
@@ -106,7 +114,7 @@ export class TestGenerator {
 			console.error(`  ✗ LLM generation failed: ${message}`);
 			console.error(`  ✦ Raw recording saved: ${fallbackPath}`);
 			console.error("  ✦ You can retry later or use the recording data manually.\n");
-			return { specPath: fallbackPath, pagePath: null };
+			return { specPath: fallbackPath, pagePath: null, fallback: true };
 		}
 	}
 }
