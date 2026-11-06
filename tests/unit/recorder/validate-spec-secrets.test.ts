@@ -40,9 +40,14 @@ test('secret-test', async ({ page }) => {
 		expect(validateSpecCode(code)).toBe(true);
 	});
 
-	it("accepts code using process.env.API_KEY", () => {
-		const code = wrapValidSpec("const apiKey = process.env.API_KEY;");
+	it("accepts code using process.env.TEST_API_KEY", () => {
+		const code = wrapValidSpec("const apiKey = process.env.TEST_API_KEY;");
 		expect(validateSpecCode(code)).toBe(true);
+	});
+
+	it("rejects env vars outside BASE_URL / TEST_* (R2: CI secret exfiltration)", () => {
+		const code = wrapValidSpec("const apiKey = process.env.API_KEY;");
+		expect(validateSpecCode(code)).toBe(false);
 	});
 
 	describe("HARDCODED_SECRET_PATTERNS — individual regex coverage", () => {

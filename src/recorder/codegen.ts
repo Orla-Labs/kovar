@@ -102,10 +102,73 @@ const DANGEROUS_PATTERNS = [
 	/\bglobalThis\s*\[/,
 	/\bXMLHttpRequest\b/,
 	/\bimportScripts\b/,
+	// --- R2 hardening: Node/global escape hatches ---
+	/\bglobal\b/,
+	/\.\s*constructor\b/,
+	/\[\s*['"`]constructor/,
+	/__proto__/,
+	/\bReflect\b/,
+	/\bimport\s*\.\s*meta\b/,
+	// Unicode / hex escapes can spell identifiers and module names past every check here.
+	/\\u[0-9a-fA-F{]/,
+	/\\x[0-9a-fA-F]{2}/,
+	// --- Playwright APIs that read local files, make arbitrary requests or launch processes ---
+	/\bsetInputFiles\b/,
+	/\bpath\s*:/,
+	/\bsaveAs\b/,
+	/\bstorageState\b/,
+	/\baddInitScript\b/,
+	/\baddScriptTag\b/,
+	/\baddStyleTag\b/,
+	/\bexposeFunction\b/,
+	/\bexposeBinding\b/,
+	/\brouteFromHAR\b/,
+	/\brequest\b/,
+	/\blaunchOptions\b/,
+	/\bexecutablePath\b/,
+	/\blaunch(?:Persistent\w*)?\s*\(/,
+	/\bconnect(?:OverCDP)?\s*\(/,
+	/\btest\s*\.\s*use\s*\(/,
 ];
 
+/** Only these modules may be imported by generated code. */
+const ALLOWED_IMPORT = /^(?:@playwright\/test|\.{1,2}\/[A-Za-z0-9_./-]+)$/;
+const IMPORT_SOURCE = /\bfrom\s*(['"`])([^'"`]*)\1|\bimport\s*(['"`])([^'"`]*)\3/g;
+
+function hasDisallowedImports(code: string): boolean {
+	for (const m of code.matchAll(IMPORT_SOURCE)) {
+		const source = m[2] ?? m[4] ?? "";
+		if (!ALLOWED_IMPORT.test(source)) return true;
+	}
+	return false;
+}
+
+/**
+ * Generated tests may only read `process.env.BASE_URL` and `process.env.TEST_*`.
+ * Any other use of `process` (optional chaining, computed access, the whole env
+ * object, other variables such as CI secrets) is rejected.
+ */
+const ALLOWED_ENV_VAR = /^(?:BASE_URL|TEST_[A-Z0-9_]+)$/;
+
+function hasDisallowedProcessAccess(code: string): boolean {
+	for (const m of code.matchAll(/\bprocess\b/g)) {
+		const rest = code.slice(m.index ?? 0);
+		const access = rest.match(/^process\.env\.([A-Za-z_$][\w$]*)(?![\w$])/);
+		if (!access || !ALLOWED_ENV_VAR.test(access[1] ?? "")) return true;
+	}
+	return false;
+}
+
+/**
+ * Defense-in-depth only. A regex deny/allow-list over generated source is not a
+ * security boundary; generated code must still be reviewed before it is run.
+ */
 function hasDangerousPatterns(code: string): boolean {
-	return DANGEROUS_PATTERNS.some((pattern) => pattern.test(code));
+	return (
+		DANGEROUS_PATTERNS.some((pattern) => pattern.test(code)) ||
+		hasDisallowedImports(code) ||
+		hasDisallowedProcessAccess(code)
+	);
 }
 
 export function validateCode(code: string): boolean {
@@ -142,15 +205,20 @@ function detectCredentialVars(pages: string, spec: string): string[] {
 	if (/TEST_PHONE|process\.env\.TEST_PHONE/.test(combined)) vars.push("TEST_PHONE=your-phone");
 	if (/TEST_USERNAME|process\.env\.TEST_USERNAME/.test(combined))
 		vars.push("TEST_USERNAME=your-username");
-	if (/API_TOKEN|process\.env\.API_TOKEN/.test(combined)) vars.push("API_TOKEN=your-api-token");
-	if (/SECRET_KEY|process\.env\.SECRET_KEY/.test(combined)) vars.push("SECRET_KEY=your-secret-key");
-	if (/ACCESS_KEY|process\.env\.ACCESS_KEY/.test(combined)) vars.push("ACCESS_KEY=your-access-key");
-	if (/AUTH_TOKEN|process\.env\.AUTH_TOKEN/.test(combined)) vars.push("AUTH_TOKEN=your-auth-token");
-	if (/API_SECRET|process\.env\.API_SECRET/.test(combined)) vars.push("API_SECRET=your-api-secret");
-	if (/CLIENT_SECRET|process\.env\.CLIENT_SECRET/.test(combined))
-		vars.push("CLIENT_SECRET=your-client-secret");
-	if (/PRIVATE_KEY|process\.env\.PRIVATE_KEY/.test(combined))
-		vars.push("PRIVATE_KEY=your-private-key");
+	if (/TEST_API_TOKEN|process\.env\.TEST_API_TOKEN/.test(combined))
+		vars.push("TEST_API_TOKEN=your-api-token");
+	if (/TEST_SECRET_KEY|process\.env\.TEST_SECRET_KEY/.test(combined))
+		vars.push("TEST_SECRET_KEY=your-secret-key");
+	if (/TEST_ACCESS_KEY|process\.env\.TEST_ACCESS_KEY/.test(combined))
+		vars.push("TEST_ACCESS_KEY=your-access-key");
+	if (/TEST_AUTH_TOKEN|process\.env\.TEST_AUTH_TOKEN/.test(combined))
+		vars.push("TEST_AUTH_TOKEN=your-auth-token");
+	if (/TEST_API_SECRET|process\.env\.TEST_API_SECRET/.test(combined))
+		vars.push("TEST_API_SECRET=your-api-secret");
+	if (/TEST_CLIENT_SECRET|process\.env\.TEST_CLIENT_SECRET/.test(combined))
+		vars.push("TEST_CLIENT_SECRET=your-client-secret");
+	if (/TEST_PRIVATE_KEY|process\.env\.TEST_PRIVATE_KEY/.test(combined))
+		vars.push("TEST_PRIVATE_KEY=your-private-key");
 	return vars;
 }
 
