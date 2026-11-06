@@ -40,9 +40,9 @@ Session cookies are detected by these case-insensitive name patterns (regular ex
 
 | Pattern | Matches | Does not match |
 |---------|---------|----------------|
-| `\bsess(ion)?` | `session`, `next-auth.session-token`, `PHPSESSID` | `vercel_session_id`, `laravel_session`, `_app_session` (underscore before `sess`) |
+| `\bsess(ion)?` | `session`, `next-auth.session-token` | `vercel_session_id`, `laravel_session`, `_app_session` (underscore before `sess`) |
 | `\bauth`, `\bcsrf`, `\blogin` | `auth_token`, `csrf`, `login_state` | `myauth` |
-| `\bjwt\b` | `jwt`, `jwt.v2` | `jwt_token` |
+| `\bjwt\b` | `jwt`, `jwt.v2` | `jwtToken` |
 | `(^\|[_-])sid($\|[_-])` | `sid`, `user-sid` | `sidebar` |
 | `[_-]token$` | `access_token`, `sb-access-token` | `token`, `accessToken` |
 | exact | `PHPSESSID`, `JSESSIONID`, `ASPSESSIONID*`, `connect.sid` | |

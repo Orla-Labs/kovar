@@ -24,11 +24,11 @@ Most apps fail this test the first time. That is the point, but it helps to know
 
 - The matcher fails only on **critical** and **high** findings. Medium/low findings are printed for information.
 - Each finding prints a `Fix:` line with the header value to set. For framework-specific code (Express, Fastify, Next.js, Koa, Hono), see [Auto-Remediation](/remediation/overview).
-- **Running against `http://localhost`?** HSTS is reported as critical, but browsers ignore HSTS over plain http. Either run the check against your HTTPS staging URL, or skip it locally:
+- **Running against `http://localhost`?** HSTS is reported as critical, but browsers ignore HSTS over plain http. Either run the check against your HTTPS staging URL, or skip it whenever the response was served over http (this also covers CI runs that use a local `webServer`):
 
 ```typescript
 await expect(response!).toHaveSecureHeaders({
-  skip: process.env.CI ? [] : ["strict-transport-security"],
+  skip: response!.url().startsWith("http://") ? ["strict-transport-security"] : [],
 });
 ```
 
