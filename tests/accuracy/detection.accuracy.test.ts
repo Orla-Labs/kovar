@@ -151,15 +151,16 @@ test.describe("xss (default apiFirst mode)", () => {
 		expect(v.matcherIds).toEqual([]);
 	});
 
-	for (const path of [
-		"/vuln/xss-csrf-protected-form",
-		"/vuln/xss-validation-error",
-		"/vuln/xss-stored-json",
-		"/vuln/xss-alert-filtered",
-		"/vuln/xss-reflect-csp-blocked",
-		"/vuln/xss-spa-fetch",
-	]) {
+	for (const [path, knownGap] of [
+		["/vuln/xss-csrf-protected-form", null],
+		["/vuln/xss-validation-error", null],
+		["/vuln/xss-stored-json", "R1-X8 stored XSS rendered on another page is never fetched"],
+		["/vuln/xss-alert-filtered", "R1-X9 exact-match reflection oracle; filtered payloads missed"],
+		["/vuln/xss-reflect-csp-blocked", null],
+		["/vuln/xss-spa-fetch", "R1-X7 API mode posts to form.action, not the JS fetch target"],
+	] as const) {
 		test(`FN check: ${path} is flagged`, async ({ page, request }) => {
+			test.fail(knownGap !== null, `Known gap ${knownGap}`);
 			const v = await xssVerdicts(page, request, path);
 			expect(v.matcherFails).toBe(true);
 			expect(v.fixtureFails).toBe(true);
@@ -203,12 +204,14 @@ test.describe("xss (DOM mode, apiFirst:false)", () => {
 		expect(v.matcherFails).toBe(true);
 	});
 
-	for (const path of [
-		"/vuln/xss-spa-fetch-typed-button",
-		"/vuln/xss-spa-fetch",
-		"/vuln/xss-alert-filtered",
-	]) {
+	for (const [path, knownGap] of [
+		["/vuln/xss-spa-fetch-typed-button", null],
+		["/vuln/xss-spa-fetch", null],
+		["/vuln/xss-alert-filtered", "R1-X9 dialog-only oracle; payloads only call alert()"],
+		["/vuln/xss-reflect-csp-blocked", "R1-X10 DOM mode reports pass when CSP blocks the alert"],
+	] as const) {
 		test(`FN check: ${path} is flagged in DOM mode`, async ({ page, request }) => {
+			test.fail(knownGap !== null, `Known gap ${knownGap}`);
 			const v = await xssVerdicts(page, request, path, false);
 			expect(v.matcherFails).toBe(true);
 		});
@@ -228,6 +231,31 @@ test.describe("auth", () => {
 
 	test("FP check: 302-to-login endpoint passes", async ({ request }) => {
 		expect(failing(await checkAuth(request, `${app.url}/good/auth-redirect`))).toEqual([]);
+	});
+
+	test.describe("with use.storageState (global auth setup project)", () => {
+		test.use({
+			storageState: {
+				cookies: [
+					{
+						name: "sid",
+						value: "s3cr3t-session",
+						domain: "localhost",
+						path: "/",
+						expires: -1,
+						httpOnly: true,
+						secure: false,
+						sameSite: "Lax",
+					},
+				],
+				origins: [],
+			},
+		});
+
+		test("FP check: protected endpoint is not reported as unprotected", async ({ request }) => {
+			test.fail(true, "Known gap R1-A3: the request fixture inherits storageState");
+			expect(failing(await checkAuth(request, `${app.url}/good/auth-401`))).toEqual([]);
+		});
 	});
 
 	test("silent-skip check: unreachable server must not pass", async ({ request }) => {
