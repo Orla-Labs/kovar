@@ -29,9 +29,9 @@ inputs:
     required: false
     default: "false"
   kovar-package:
-    description: "npm spec for Kovar (e.g. @orlalabs/kovar@0.7.0, or a path to a packed .tgz)"
+    description: "npm spec for Kovar (e.g. @orlalabs/kovar@0.7.0, or a path to a packed .tgz). Default: the version in this action's package.json, so pinning the action ref pins the checks."
     required: false
-    default: "@orlalabs/kovar@latest"
+    default: ""
   playwright-version:
     description: "@playwright/test version used to drive the browser"
     required: false
@@ -62,6 +62,17 @@ runs:
         mkdir -p "$dir"
         cd "$dir"
         [ -f package.json ] || npm init -y > /dev/null
+        if [ -z "$KOVAR_PACKAGE" ]; then
+          # Pinning the action ref (e.g. @v0.7.0) must also pin the Kovar code it runs.
+          version="$(node -p "require('$GITHUB_ACTION_PATH/../../../package.json').version")"
+          if [ -n "$(npm view "@orlalabs/kovar@$version" version 2>/dev/null)" ]; then
+            KOVAR_PACKAGE="@orlalabs/kovar@$version"
+          else
+            echo "::warning::@orlalabs/kovar@$version is not published (unreleased action ref); using @orlalabs/kovar@latest"
+            KOVAR_PACKAGE="@orlalabs/kovar@latest"
+          fi
+        fi
+        echo "Installing $KOVAR_PACKAGE"
         # Resolve relative tarball paths against the caller's workspace.
         case "$KOVAR_PACKAGE" in
           ./*|../*) KOVAR_PACKAGE="$GITHUB_WORKSPACE/$KOVAR_PACKAGE" ;;

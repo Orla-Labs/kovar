@@ -44,7 +44,7 @@ jobs:
 | `github-token` | GitHub token for PR comments | No | `${{ github.token }}` |
 | `baseline-path` | Path to baseline JSON file for tracking findings across PRs | No | `""` (disabled) |
 | `update-baseline` | Save current findings as new baseline | No | `false` |
-| `kovar-package` | npm spec for Kovar (version, or path to a packed `.tgz`) | No | `@orlalabs/kovar@latest` |
+| `kovar-package` | npm spec for Kovar (version, or path to a packed `.tgz`) | No | The version matching the action ref you pinned |
 | `playwright-version` | `@playwright/test` version used to drive Chromium | No | `latest` |
 
 ## Action Outputs

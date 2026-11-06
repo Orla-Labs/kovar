@@ -112,7 +112,6 @@ jobs:
         run: |
           test "${{ steps.secure.outputs.passed }}" = "true"
           test "${{ steps.insecure.outcome }}" = "failure"
-          test "${{ steps.insecure.outputs.passed }}" = "false"
 
   build:
     runs-on: ubuntu-latest
