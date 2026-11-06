@@ -1,11 +1,11 @@
 name: "Kovar Security Check"
-description: "Run Kovar security checks and report findings"
+description: "Run Kovar header and cookie security checks against a URL and report findings"
 inputs:
   url:
     description: "URL to check"
     required: true
   checks:
-    description: "Comma-separated checks to run (headers,cookies,xss)"
+    description: "Comma-separated checks to run (headers,cookies)"
     required: false
     default: "headers,cookies"
   fail-on:
@@ -28,13 +28,60 @@ inputs:
     description: "Save current findings as new baseline (true/false)"
     required: false
     default: "false"
+  kovar-package:
+    description: "npm spec for Kovar (e.g. @orlalabs/kovar@0.7.0, or a path to a packed .tgz)"
+    required: false
+    default: "@orlalabs/kovar@latest"
+  playwright-version:
+    description: "@playwright/test version used to drive the browser"
+    required: false
+    default: "latest"
 outputs:
   score:
     description: "Security score (0-100)"
+    value: ${{ steps.run.outputs.score }}
   findings-count:
     description: "Total number of findings"
+    value: ${{ steps.run.outputs.findings-count }}
   passed:
     description: "Whether the check passed (true/false)"
+    value: ${{ steps.run.outputs.passed }}
 runs:
-  using: "node20"
-  main: "../../../dist/ci/index.js"
+  # Composite (not a node20/node24 JavaScript action): the check needs Kovar,
+  # @playwright/test and a Chromium build, none of which exist on a bare runner.
+  using: "composite"
+  steps:
+    - name: Install Kovar and Playwright
+      shell: bash
+      env:
+        KOVAR_PACKAGE: ${{ inputs.kovar-package }}
+        PLAYWRIGHT_VERSION: ${{ inputs.playwright-version }}
+      run: |
+        set -euo pipefail
+        dir="$RUNNER_TEMP/kovar-action"
+        mkdir -p "$dir"
+        cd "$dir"
+        [ -f package.json ] || npm init -y > /dev/null
+        # Resolve relative tarball paths against the caller's workspace.
+        case "$KOVAR_PACKAGE" in
+          ./*|../*) KOVAR_PACKAGE="$GITHUB_WORKSPACE/$KOVAR_PACKAGE" ;;
+        esac
+        npm install --no-audit --no-fund "$KOVAR_PACKAGE" "@playwright/test@$PLAYWRIGHT_VERSION"
+        npx playwright install --with-deps chromium
+        if [ ! -f node_modules/@orlalabs/kovar/dist/ci/index.js ]; then
+          echo "::error::Installed Kovar package does not ship dist/ci/index.js (requires @orlalabs/kovar >= 0.7.0)"
+          exit 1
+        fi
+    - name: Run Kovar security check
+      id: run
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_CHECKS: ${{ inputs.checks }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_BASELINE_PATH: ${{ inputs.baseline-path }}
+        INPUT_UPDATE_BASELINE: ${{ inputs.update-baseline }}
+      run: node "$RUNNER_TEMP/kovar-action/node_modules/@orlalabs/kovar/dist/ci/index.js"

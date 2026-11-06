@@ -1,3 +1,4 @@
+import { appendFileSync, readFileSync } from "node:fs";
 import { analyzeCookies, mapPlaywrightCookies } from "../checks/cookies.js";
 import { analyzeHeaders } from "../checks/headers.js";
 import type { SecurityFinding, Severity } from "../types/results.js";
@@ -6,8 +7,13 @@ import { formatPRComment } from "./github-comment.js";
 import { calculateScore, meetsThreshold } from "./types.js";
 import type { CICheckOptions, CICheckResult } from "./types.js";
 
+export const SUPPORTED_CHECKS = ["headers", "cookies"] as const;
+
 async function collectFindings(url: string, checks: string[]): Promise<SecurityFinding[]> {
-	const { chromium } = await import("playwright-core");
+	// Resolve the browser through the @playwright/test peer dependency rather than
+	// playwright-core, which is not a direct dependency and is not resolvable under
+	// strict installers (pnpm, Yarn PnP).
+	const { chromium } = await import("@playwright/test");
 	const browser = await chromium.launch({ headless: true });
 	const findings: SecurityFinding[] = [];
 
@@ -61,7 +67,6 @@ function getInput(name: string, fallback?: string): string {
 function setOutput(name: string, value: string): void {
 	const outputFile = process.env.GITHUB_OUTPUT;
 	if (outputFile) {
-		const { appendFileSync } = require("node:fs") as typeof import("node:fs");
 		appendFileSync(outputFile, `${name}=${value}\n`);
 	}
 }
@@ -70,7 +75,6 @@ async function postPRComment(comment: string, token: string): Promise<void> {
 	const eventPath = process.env.GITHUB_EVENT_PATH;
 	if (!eventPath) return;
 
-	const { readFileSync } = require("node:fs") as typeof import("node:fs");
 	const event = JSON.parse(readFileSync(eventPath, "utf-8"));
 	const prNumber = event?.pull_request?.number;
 	if (!prNumber) return;
@@ -101,6 +105,14 @@ async function main(): Promise<void> {
 		.split(",")
 		.map((c) => c.trim())
 		.filter(Boolean);
+	const unsupported = checks.filter((c) => !(SUPPORTED_CHECKS as readonly string[]).includes(c));
+	if (unsupported.length > 0) {
+		// Fail loudly instead of silently skipping: a skipped check must never read as a pass.
+		console.error(
+			`Error: unsupported check(s): ${unsupported.join(", ")}. Supported: ${SUPPORTED_CHECKS.join(", ")}`,
+		);
+		process.exit(1);
+	}
 	const failOn = getInput("fail-on", "high") as Severity;
 	const shouldComment = getInput("comment", "true") === "true";
 	const githubToken = getInput("github-token", "");

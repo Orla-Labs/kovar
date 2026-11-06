@@ -3,7 +3,9 @@ title: GitHub Action
 description: Run Kovar security checks in CI and post findings as PR comments
 ---
 
-Kovar ships a GitHub Action that runs security checks and posts findings as PR comments.
+Kovar ships a GitHub Action that runs header and cookie security checks against a URL and posts findings as PR comments.
+
+It is a composite action: it installs `@orlalabs/kovar` and `@playwright/test` into a temporary directory and downloads Chromium itself, so your workflow does not need `npm ci` or `npx playwright install` for this step. Requires `@orlalabs/kovar` 0.7.0 or later. Pin the action to a release tag or commit SHA.
 
 ## Workflow Example
 
@@ -19,16 +21,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install chromium
+          node-version: 24
 
       - name: Run security check
-        uses: ./.github/actions/security-check
+        uses: Orla-Labs/kovar/.github/actions/security-check@v0.7.0
         with:
           url: "https://staging.your-app.com"
           checks: "headers,cookies"
@@ -42,12 +38,14 @@ jobs:
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `url` | URL to check | Yes | -- |
-| `checks` | Comma-separated checks to run | No | `headers,cookies` |
+| `checks` | Comma-separated checks to run: `headers`, `cookies`. Any other value fails the step. | No | `headers,cookies` |
 | `fail-on` | Minimum severity to fail: `critical`, `high`, `medium`, `low` | No | `high` |
 | `comment` | Post findings as PR comment | No | `true` |
 | `github-token` | GitHub token for PR comments | No | `${{ github.token }}` |
 | `baseline-path` | Path to baseline JSON file for tracking findings across PRs | No | `""` (disabled) |
 | `update-baseline` | Save current findings as new baseline | No | `false` |
+| `kovar-package` | npm spec for Kovar (version, or path to a packed `.tgz`) | No | `@orlalabs/kovar@latest` |
+| `playwright-version` | `@playwright/test` version used to drive Chromium | No | `latest` |
 
 ## Action Outputs
 
@@ -84,12 +82,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: npm ci
-      - run: npx playwright install chromium
+          node-version: 24
 
       - name: Run security check with baseline
-        uses: ./.github/actions/security-check
+        uses: Orla-Labs/kovar/.github/actions/security-check@v0.7.0
         with:
           url: "https://staging.your-app.com"
           baseline-path: ".kovar/baseline.json"
@@ -106,7 +102,7 @@ You can use the outputs in subsequent steps:
 ```yaml
       - name: Run security check
         id: security
-        uses: ./.github/actions/security-check
+        uses: Orla-Labs/kovar/.github/actions/security-check@v0.7.0
         with:
           url: "https://staging.your-app.com"
 

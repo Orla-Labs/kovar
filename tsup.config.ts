@@ -14,7 +14,7 @@ export default defineConfig([
 		clean: true,
 		sourcemap: true,
 		treeshake: true,
-		target: "node18",
+		target: "node20",
 		outDir: "dist",
 		external: ["@playwright/test", "@modelcontextprotocol/sdk", "better-sqlite3"],
 	},
@@ -25,7 +25,7 @@ export default defineConfig([
 		clean: false,
 		sourcemap: true,
 		treeshake: true,
-		target: "node18",
+		target: "node20",
 		outDir: "dist",
 		external: [
 			"@playwright/test",
@@ -40,6 +40,19 @@ export default defineConfig([
 		banner: { js: "#!/usr/bin/env node" },
 	},
 	{
+		// GitHub Action entry (.github/actions/security-check). Shipped in the npm
+		// tarball and executed by the composite action after installing the package.
+		entry: { "ci/index": "src/ci/index.ts" },
+		format: ["esm"],
+		dts: false,
+		clean: false,
+		sourcemap: true,
+		treeshake: true,
+		target: "node20",
+		outDir: "dist",
+		external: ["@playwright/test"],
+	},
+	{
 		entry: {
 			"plugins/vite": "src/plugins/vite.ts",
 			"plugins/next": "src/plugins/next.ts",
@@ -51,7 +64,7 @@ export default defineConfig([
 		clean: false,
 		sourcemap: true,
 		treeshake: true,
-		target: "node18",
+		target: "node20",
 		outDir: "dist",
 		external: ["@babel/parser", "@babel/traverse", "@babel/generator", "@babel/types", "vite"],
 	},
