@@ -7,7 +7,7 @@ This page describes the internal architecture of the Kovar recorder -- how it ca
 
 ## Pipeline
 
-1. **Launches Chromium** with anti-bot detection bypass (`navigator.webdriver` override, standard Chrome user agent). Works on Cloudflare-protected sites.
+1. **Launches Chromium** (headed) with Playwright's defaults. Kovar does not hide automation: `navigator.webdriver` is `true` and the user agent is unmodified, so sites with bot protection may challenge or block the recording session.
 
 2. **Captures actions** in the browser via an injected script: clicks, inputs, selects, keypresses, and SPA navigations (pushState/replaceState). Actions are debounced (50ms for clicks, 300ms for inputs).
 

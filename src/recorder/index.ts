@@ -65,10 +65,8 @@ export class RecordingSession {
 
 	async run(): Promise<string> {
 		const { chromium } = await this.resolvePlaywright();
-		const browser = await chromium.launch({
-			headless: false,
-			args: ["--disable-blink-features=AutomationControlled"],
-		});
+		// No bot-detection evasion: the recorder identifies as automated Chromium.
+		const browser = await chromium.launch({ headless: false });
 
 		const sigintHandler = async () => {
 			console.log("\n  ✦ Recording interrupted. Saving captured data...");
@@ -94,20 +92,8 @@ export class RecordingSession {
 		sessionData: SessionData;
 		sourceDir: string | undefined;
 	}> {
-		const tempContext = await browser.newContext();
-		const tempPage = await tempContext.newPage();
-		const rawUA = await tempPage.evaluate(() => navigator.userAgent);
-		await tempContext.close();
-		const cleanUA = rawUA.replace(/HeadlessChrome/g, "Chrome");
-
-		const context = await browser.newContext({
-			userAgent: cleanUA,
-		});
+		const context = await browser.newContext();
 		const page = await context.newPage();
-
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "webdriver", { get: () => false });
-		});
 
 		const actionCapture = new ActionCapture(this.config.maxActions);
 		const networkCapture = new NetworkCapture();
