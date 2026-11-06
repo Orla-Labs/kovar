@@ -97,7 +97,8 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
-		"prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build"
+		"prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build",
+		"test:accuracy": "playwright test -c playwright.accuracy.config.ts"
 	},
 	"peerDependencies": {
 		"@playwright/test": ">=1.40.0"
