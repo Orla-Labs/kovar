@@ -32,17 +32,35 @@ function maskHeaders(headers: Record<string, string>): Record<string, string> {
 	return masked;
 }
 
-const SENSITIVE_KEY_PATTERN =
-	/^(token|secret|password|passwd|apiKey|api_key|access_token|refresh_token|private_key|client_secret|session_id|credential|authorization|auth_token|ssn|credit_card|card_number|cvv|private|signing_key)$/i;
+/**
+ * Sensitive key detection. Keys are normalised (lower-cased, `_`/`-`/`.` removed)
+ * and matched on suffix so camelCase / prefixed variants (`accessToken`,
+ * `id_token`, `user.apiSecret`, `x-session-token`) are caught. Over-redaction is
+ * the safe failure mode: this data is sent to a third-party LLM vendor.
+ */
+const SENSITIVE_KEY_SUFFIX =
+	/(token|secret|passw(or)?d|passwd|pwd|passphrase|apikey|privatekey|signingkey|clientsecret|credential|credentials|authorization|auth|sessionid|sid|ssn|creditcard|cardnumber|cvv|cvc|otp|totp|mfacode|pin|jwt|cookie)$/;
+const SENSITIVE_KEY_EXACT = new Set(["code", "authcode", "authorizationcode", "verificationcode"]);
+
+function isSensitiveKey(key: string): boolean {
+	const normalised = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+	return SENSITIVE_KEY_EXACT.has(normalised) || SENSITIVE_KEY_SUFFIX.test(normalised);
+}
 
 const INLINE_SECRET_PATTERNS = [
 	/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
 	/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
 	/Bearer\s+[A-Za-z0-9_\-.~+/]+=*/g,
 	/Basic\s+[A-Za-z0-9+/]+=*/g,
-	/password=[^&\s]+/gi,
 	/\b(sk-|pk-|key-|ak_|sk_)[A-Za-z0-9_-]+/g,
 ];
+
+/**
+ * Key/value pairs in non-JSON (or truncated JSON) text: `"key": "value"`,
+ * `key=value` (urlencoded), `key: value`.
+ */
+const KEY_VALUE_PATTERN =
+	/("?)([A-Za-z0-9_.-]{1,64})\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"?|[^&\s,;}"]+)/g;
 
 function sanitizeJsonValue(value: unknown): unknown {
 	if (value === null || value === undefined) return value;
@@ -55,7 +73,7 @@ function sanitizeJsonValue(value: unknown): unknown {
 function sanitizeJsonObject(obj: Record<string, unknown>): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(obj)) {
-		if (SENSITIVE_KEY_PATTERN.test(key)) {
+		if (isSensitiveKey(key)) {
 			result[key] = "[REDACTED]";
 		} else {
 			result[key] = sanitizeJsonValue(value);
@@ -64,8 +82,19 @@ function sanitizeJsonObject(obj: Record<string, unknown>): Record<string, unknow
 	return result;
 }
 
+function redactKeyValuePairs(text: string): string {
+	return text.replace(
+		KEY_VALUE_PATTERN,
+		(match, quote: string, key: string, sep: string, value: string) => {
+			if (!isSensitiveKey(key)) return match;
+			const redacted = value.startsWith('"') ? '"[REDACTED]"' : "[REDACTED]";
+			return `${quote}${key}${quote}${sep}${redacted}`;
+		},
+	);
+}
+
 function applyInlineRedactions(text: string): string {
-	let result = text;
+	let result = redactKeyValuePairs(text);
 	for (const pattern of INLINE_SECRET_PATTERNS) {
 		const fresh = new RegExp(pattern.source, pattern.flags);
 		result = result.replace(fresh, "[REDACTED]");
@@ -73,14 +102,26 @@ function applyInlineRedactions(text: string): string {
 	return result;
 }
 
-function sanitizeResponseBody(body: string): string {
-	try {
-		const parsed: unknown = JSON.parse(body);
-		const sanitized = sanitizeJsonValue(parsed);
-		return JSON.stringify(sanitized);
-	} catch {
-		return applyInlineRedactions(body);
+/** Bodies larger than this are not JSON-parsed (only regex-redacted). */
+const MAX_PARSE_SIZE = 1024 * 1024;
+
+/**
+ * Redact then truncate. Redaction runs on the full body (parsed as JSON when
+ * possible) *before* truncation, because truncating first produces invalid JSON
+ * and silently skipped key-based redaction.
+ */
+export function sanitizeBody(body: string, maxSize = MAX_BODY_SIZE): string {
+	let sanitized: string;
+	if (body.length <= MAX_PARSE_SIZE) {
+		try {
+			sanitized = JSON.stringify(sanitizeJsonValue(JSON.parse(body)));
+		} catch {
+			sanitized = applyInlineRedactions(body);
+		}
+	} else {
+		sanitized = applyInlineRedactions(body.substring(0, maxSize * 2));
 	}
+	return sanitized.length > maxSize ? sanitized.substring(0, maxSize) : sanitized;
 }
 
 export class NetworkCapture {
@@ -122,9 +163,7 @@ export class NetworkCapture {
 			let responseBody: string | null = null;
 			if (CAPTURED_RESOURCE_TYPES.has(resourceType)) {
 				try {
-					const body = await response.text();
-					const truncated = body.length > MAX_BODY_SIZE ? body.substring(0, MAX_BODY_SIZE) : body;
-					responseBody = sanitizeResponseBody(truncated);
+					responseBody = sanitizeBody(await response.text());
 				} catch {
 					responseBody = null;
 				}
@@ -138,7 +177,7 @@ export class NetworkCapture {
 				requestHeaders: maskHeaders(request.headers()),
 				requestPostData: (() => {
 					const postData = request.postData();
-					return postData ? sanitizeResponseBody(postData) : null;
+					return postData ? sanitizeBody(postData) : null;
 				})(),
 				responseStatus: response.status(),
 				responseHeaders: maskHeaders(response.headers()),

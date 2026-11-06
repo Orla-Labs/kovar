@@ -1,25 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { RecordingSession } from "./recorder/index.js";
-
-function loadEnvFile(): void {
-	const envPath = resolve(process.cwd(), ".env");
-	if (!existsSync(envPath)) return;
-	const content = readFileSync(envPath, "utf-8");
-	for (const line of content.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed || trimmed.startsWith("#")) continue;
-		const eqIndex = trimmed.indexOf("=");
-		if (eqIndex === -1) continue;
-		const key = trimmed.slice(0, eqIndex).trim();
-		const value = trimmed
-			.slice(eqIndex + 1)
-			.trim()
-			.replace(/^["']|["']$/g, "");
-		if (!process.env[key]) process.env[key] = value;
-	}
-}
+import { loadEnvFile } from "./utils/env-file.js";
 
 function parseCliArgs() {
 	const { values, positionals } = parseArgs({
@@ -142,6 +123,9 @@ async function executeCommand(
 		process.exit(1);
 	}
 
+	// Only `record` reads ./.env (for LLM keys and BASE_URL/TEST_* used by --heal).
+	loadEnvFile();
+
 	const url = positionals[1];
 	if (!url) {
 		console.error("Error: URL is required.\n  Usage: kovar record <url>\n");
@@ -176,7 +160,6 @@ async function executeCommand(
 }
 
 async function main() {
-	loadEnvFile();
 	const { values, positionals } = parseCliArgs();
 
 	if (values.help || positionals.length === 0) {

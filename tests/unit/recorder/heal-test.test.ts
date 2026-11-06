@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockLLMProvider } from "../../helpers/index.js";
 
@@ -85,8 +86,9 @@ describe("runTest", () => {
 		healer.runTest("./tests/my-test.spec.ts");
 		expect(mockedExecFileSync).toHaveBeenCalledWith(
 			"npx",
-			["playwright", "test", "./tests/my-test.spec.ts", "--reporter=line"],
+			["--no", "playwright", "test", resolve("./tests/my-test.spec.ts"), "--reporter=line"],
 			expect.objectContaining({
+				env: expect.any(Object),
 				timeout: 60000,
 				stdio: "pipe",
 				encoding: "utf-8",

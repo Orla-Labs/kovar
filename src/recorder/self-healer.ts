@@ -1,9 +1,69 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { extractPOMCode, validateCode, validateSpecCode } from "./codegen.js";
 import { buildFixPrompt } from "./llm/prompt.js";
 import type { LLMProvider } from "./llm/types.js";
+
+/**
+ * Environment passed to the generated test. The test is LLM-written code shaped
+ * by untrusted page content, so it must not inherit CI secrets, LLM API keys or
+ * loader hooks such as NODE_OPTIONS. Only what Playwright needs to start plus the
+ * BASE_URL / TEST_* variables generated tests are allowed to read. Projects whose
+ * playwright.config (e.g. `webServer`) needs more can opt variables in by name with
+ * KOVAR_HEAL_ENV=VAR1,VAR2 (read from the real environment; .env cannot set it).
+ */
+const HEAL_ENV_KEYS = new Set([
+	"PATH",
+	"Path",
+	"PATHEXT",
+	"HOME",
+	"USERPROFILE",
+	"HOMEDRIVE",
+	"HOMEPATH",
+	"SystemRoot",
+	"SYSTEMROOT",
+	"ComSpec",
+	"WINDIR",
+	"TEMP",
+	"TMP",
+	"TMPDIR",
+	"APPDATA",
+	"LOCALAPPDATA",
+	"XDG_CACHE_HOME",
+	"XDG_RUNTIME_DIR",
+	"DISPLAY",
+	"WAYLAND_DISPLAY",
+	"XAUTHORITY",
+	"LANG",
+	"LC_ALL",
+	"TERM",
+	"CI",
+	"PLAYWRIGHT_BROWSERS_PATH",
+	"HTTP_PROXY",
+	"HTTPS_PROXY",
+	"NO_PROXY",
+	"http_proxy",
+	"https_proxy",
+	"no_proxy",
+	"NODE_EXTRA_CA_CERTS",
+	"BASE_URL",
+]);
+
+export function buildHealEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+	const env: NodeJS.ProcessEnv = {};
+	const optIn = new Set(
+		(source.KOVAR_HEAL_ENV ?? "")
+			.split(",")
+			.map((k) => k.trim())
+			.filter((k) => k && k !== "NODE_OPTIONS"),
+	);
+	for (const [key, value] of Object.entries(source)) {
+		if (value === undefined) continue;
+		if (HEAL_ENV_KEYS.has(key) || optIn.has(key) || /^TEST_[A-Z0-9_]+$/.test(key)) env[key] = value;
+	}
+	return env;
+}
 
 /** @internal Not part of the stable public API. May change without notice. */
 export class SelfHealer {
@@ -14,6 +74,11 @@ export class SelfHealer {
 	) {}
 
 	async heal(specPath: string, pagePath: string | null): Promise<void> {
+		console.warn(
+			"  ⚠ --heal executes AI-generated test code on this machine. It only receives PATH/HOME-style variables,\n" +
+				"    proxy settings, BASE_URL and TEST_* (plus any names listed in KOVAR_HEAL_ENV). Review the generated\n" +
+				"    files first if the recorded site is not fully trusted.",
+		);
 		for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
 			console.log(`  ✦ Self-heal: running test (attempt ${attempt}/${this.maxAttempts})...`);
 
@@ -59,17 +124,20 @@ export class SelfHealer {
 	runTest(specPath: string): { passed: boolean; error: string } {
 		const resolvedSpec = resolve(specPath);
 		const resolvedOutput = resolve(this.outputDir);
-		if (!resolvedSpec.startsWith(resolvedOutput)) {
+		const rel = relative(resolvedOutput, resolvedSpec);
+		if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
 			throw new Error(
 				`Test path "${resolvedSpec}" is outside output directory "${resolvedOutput}"`,
 			);
 		}
 
 		try {
-			execFileSync("npx", ["playwright", "test", specPath, "--reporter=line"], {
+			// `--no`: never let npx download a package from the registry here.
+			execFileSync("npx", ["--no", "playwright", "test", resolvedSpec, "--reporter=line"], {
 				timeout: 60000,
 				stdio: "pipe",
 				encoding: "utf-8",
+				env: buildHealEnv(),
 				// Windows requires shell to resolve npx; safe here since specPath is validated above
 				shell: process.platform === "win32",
 			});

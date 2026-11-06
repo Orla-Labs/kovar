@@ -1,5 +1,6 @@
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { chmodSync, closeSync, existsSync, mkdirSync, openSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import Database, { type Database as Db } from "better-sqlite3";
 import { resolveDbPath } from "./paths.js";
 import type { Canonical, Message, Run, ToolCallEvent } from "./types.js";
@@ -164,12 +165,39 @@ export type EventInput = Omit<ToolCallEvent, "id" | "seq" | "runId" | "tokensIn"
 
 export type MessageInput = Omit<Message, "id" | "seq" | "runId">;
 
+/**
+ * The store holds plaintext tool-call args/results, proxied MCP traffic and
+ * ingested transcripts. Keep it owner-only: dir 0700, db file 0600. SQLite
+ * creates the -wal/-shm sidecars with the main file's mode, so fixing the main
+ * file before the WAL pragma covers them too.
+ */
+function secureDbLocation(path: string): void {
+	const dir = dirname(path);
+	if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+	if (resolve(dir) === resolve(join(homedir(), ".kovar"))) {
+		try {
+			chmodSync(dir, 0o700);
+		} catch {
+			// best effort (e.g. not owner)
+		}
+	}
+	if (!existsSync(path)) closeSync(openSync(path, "a", 0o600));
+	for (const f of [path, `${path}-wal`, `${path}-shm`]) {
+		if (!existsSync(f)) continue;
+		try {
+			chmodSync(f, 0o600);
+		} catch {
+			// best effort (e.g. not owner, or filesystem without POSIX modes)
+		}
+	}
+}
+
 export class Store {
 	private readonly db: Db;
 
 	constructor(options: StoreOptions = {}) {
 		const path = options.dbPath ?? resolveDbPath();
-		if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
+		if (path !== ":memory:") secureDbLocation(path);
 		this.db = new Database(path);
 		this.db.pragma("journal_mode = WAL");
 		this.db.pragma("foreign_keys = ON");

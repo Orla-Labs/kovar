@@ -4,28 +4,42 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: read
+
 jobs:
   # Run the full CI suite first — release won't publish unless all checks pass
   ci:
     uses: ./.github/workflows/ci.yml
 
+  # The OIDC token (id-token: write) can publish to npm, so this job runs no
+  # third-party actions and no dependency install scripts.
   publish:
     runs-on: ubuntu-latest
     needs: [ci]
     permissions:
-      contents: write
+      contents: read
       id-token: write
     environment: npm
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: lts/*
           registry-url: https://registry.npmjs.org
-      - run: npm install -g npm@latest
-      - run: npm ci
+      - run: npm install -g npm@11.21.2
+      - run: npm ci --ignore-scripts
       - run: npm run build
-      - run: npm publish --provenance --access public
-      - uses: softprops/action-gh-release@v2
+      - run: npm publish --provenance --access public --ignore-scripts
+
+  github-release:
+    runs-on: ubuntu-latest
+    needs: [publish]
+    permissions:
+      contents: write
+    steps:
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true

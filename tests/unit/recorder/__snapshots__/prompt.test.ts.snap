@@ -64,6 +64,8 @@ When you see [EMAIL], [PASSWORD], [PHONE], [REDACTED], [CARD], [TOKEN]:
 - Page objects: accept as method parameters
 - Spec files: read from process.env
 - NEVER hardcode masked values
+- ONLY read process.env.BASE_URL and process.env.TEST_* variables (e.g. TEST_EMAIL, TEST_PASSWORD, TEST_API_TOKEN). Any other environment variable is rejected.
+- ONLY import from '@playwright/test' and './pages/*'. Do not use page.request, setInputFiles, or any option that takes a file path.
 
 ## Example Output
 
