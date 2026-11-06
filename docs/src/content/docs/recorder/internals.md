@@ -13,11 +13,11 @@ This page describes the internal architecture of the Kovar recorder -- how it ca
 
 3. **Captures network** requests (fetch/xhr only). Filters out analytics, tracking, fonts, images, and static assets. Limits: 500 requests max, 10KB body per request.
 
-4. **Masks credentials** before anything is sent to the AI: passwords, emails, credit cards, JWTs, phone numbers, and SSN-like patterns are all replaced with tokens like `[PASSWORD]`, `[EMAIL]`, `[TOKEN]`. Network responses are also sanitized (JWTs, emails, sensitive JSON keys redacted).
+4. **Masks credentials** before data is sent to the AI provider you configured (Anthropic or OpenAI): passwords, emails, credit cards, JWTs, phone numbers, and SSN-like patterns are replaced with tokens like `[PASSWORD]`, `[EMAIL]`, `[TOKEN]`. Network bodies are sanitized (JWTs, emails, Bearer/Basic credentials, and values of token/secret/password-like keys in JSON and form bodies). Query strings and hash parameters are stripped from every URL. Masking is pattern-based and best effort: page text, element labels, request paths and the first 200 characters of API request/response bodies are sent to the provider, so record against test accounts and non-production data.
 
 5. **Sends to AI** with a structured prompt: actions grouped by page, suggested locator strategies, API calls prioritized by mutation type. Dynamic token budgeting keeps costs low (~$0.05-0.15/session on Claude Sonnet).
 
-6. **Validates output**: rejects generated code containing `eval()`, `require()`, `child_process`, `fs` operations, hardcoded secrets, or missing assertions.
+6. **Validates output** (defense in depth, not a sandbox): rejects generated code that imports anything other than `@playwright/test` and local page objects, reads environment variables other than `BASE_URL` / `TEST_*`, uses `eval()`, `require()`, file-path options, `page.request`, `setInputFiles`, hardcoded secrets, or lacks assertions. Review generated tests before committing them.
 
 7. **Writes files**: page objects, spec, and `.env.example`. If AI generation fails, saves the raw recording as JSON for manual use or retry.
 
@@ -52,7 +52,7 @@ Only fetch and XHR requests are captured. The following are filtered out:
 - Image requests
 - Static asset requests (CSS, JS bundles)
 
-Request and response bodies are truncated to 10KB. Sensitive data in bodies (JWTs, emails, API keys in JSON values) is redacted before being sent to the AI.
+Request and response bodies are redacted, then truncated to 10KB. Sensitive data in bodies (JWTs, emails, API keys, values of token/secret/password-like keys) is redacted before being sent to the AI.
 
 ## Code Generation
 
