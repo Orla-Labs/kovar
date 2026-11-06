@@ -6,6 +6,18 @@ import type { BaselineDiff } from "./baseline.js";
 import { isCouldNotRun } from "./baseline.js";
 import { meetsThreshold } from "./types.js";
 
+export const SEVERITIES: readonly Severity[] = ["critical", "high", "medium", "low", "info"];
+
+/**
+ * Parse the fail-on input. Case-insensitive; anything else returns null so the
+ * caller can fail loudly. (An unknown threshold used to compare as undefined,
+ * so nothing ever blocked and the job passed.)
+ */
+export function parseSeverity(value: string): Severity | null {
+	const v = value.trim().toLowerCase();
+	return (SEVERITIES as readonly string[]).includes(v) ? (v as Severity) : null;
+}
+
 export interface GateResult {
 	passed: boolean;
 	/** Findings that fail the job: new (or all, without a baseline) at/above threshold, plus every could-not-run finding at/above threshold. */

@@ -9,7 +9,7 @@ inputs:
     required: false
     default: "headers,cookies"
   fail-on:
-    description: "Minimum severity to fail the check (critical,high,medium,low)"
+    description: "Minimum severity to fail the check (critical,high,medium,low,info; case-insensitive). Any other value fails the step."
     required: false
     default: "high"
   comment:
@@ -61,7 +61,7 @@ outputs:
     description: "Path to kovar-report.json (findings, gate result, baseline status, remediation suggestions)"
     value: ${{ steps.run.outputs.json-path }}
   sarif-path:
-    description: "Path to kovar.sarif (SARIF 2.1.0, for github/codeql-action/upload-sarif)"
+    description: "Path to kovar.sarif (SARIF 2.1.0, schema-valid; GitHub code-scanning upload not yet tested)"
     value: ${{ steps.run.outputs.sarif-path }}
 runs:
   # Composite (not a node20/node24 JavaScript action): the check needs Kovar,

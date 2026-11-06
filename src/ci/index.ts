@@ -7,7 +7,14 @@ import { detectFramework } from "../remediation/frameworks.js";
 import type { SecurityFinding, Severity } from "../types/results.js";
 import { diffFindings, loadBaseline, saveBaseline } from "./baseline.js";
 import { formatPRComment } from "./github-comment.js";
-import { buildJsonReport, evaluateGate, toSarif, upsertPRComment } from "./report.js";
+import {
+	SEVERITIES,
+	buildJsonReport,
+	evaluateGate,
+	parseSeverity,
+	toSarif,
+	upsertPRComment,
+} from "./report.js";
 import { calculateScore } from "./types.js";
 import type { CICheckOptions, CICheckResult } from "./types.js";
 
@@ -121,7 +128,13 @@ async function main(): Promise<void> {
 		);
 		process.exit(1);
 	}
-	const failOn = getInput("fail-on", "high") as Severity;
+	const failOnInput = getInput("fail-on", "high");
+	const parsedFailOn = parseSeverity(failOnInput);
+	if (!parsedFailOn) {
+		console.error(`Error: invalid fail-on "${failOnInput}". Use one of: ${SEVERITIES.join(", ")}`);
+		process.exit(1);
+	}
+	const failOn: Severity = parsedFailOn;
 	const shouldComment = getInput("comment", "true") === "true";
 	const githubToken = getInput("github-token", "");
 	const baselinePath = getInput("baseline-path", "") || undefined;

@@ -17,6 +17,9 @@ on: [pull_request]
 jobs:
   security:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # needed to create/update the PR comment
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,7 +42,7 @@ jobs:
 |-------|-------------|----------|---------|
 | `url` | URL to check | Yes | -- |
 | `checks` | Comma-separated checks to run: `headers`, `cookies`. Any other value fails the step. | No | `headers,cookies` |
-| `fail-on` | Minimum severity to fail: `critical`, `high`, `medium`, `low` | No | `high` |
+| `fail-on` | Minimum severity to fail: `critical`, `high`, `medium`, `low`, `info` (case-insensitive; any other value fails the step) | No | `high` |
 | `comment` | Post findings as PR comment | No | `true` |
 | `github-token` | GitHub token for PR comments | No | `${{ github.token }}` |
 | `baseline-path` | Path to baseline JSON file for tracking findings across PRs | No | `""` (disabled) |
@@ -71,9 +74,9 @@ jobs:
 Every run writes two files to `output-dir`:
 
 - `kovar-report.json`: findings with `blocking`, `baseline` (`new`/`existing`/`none`) and `couldNotRun` flags, the gate result, resolved baseline entries, and framework-specific remediation suggestions.
-- `kovar.sarif`: SARIF 2.1.0, one rule per finding ID, with `security-severity` and CWE tags.
+- `kovar.sarif`: SARIF 2.1.0, one rule per finding ID, with `security-severity` and CWE tags. It validates against the SARIF schema. Uploading it to GitHub code scanning has not been tested yet: findings are located by URL, not by a file in your repository.
 
-The same Markdown as the PR comment is written to the job summary. The PR comment is updated in place on each run rather than posted again.
+The same Markdown as the PR comment is written to the job summary. The PR comment is updated in place on each run rather than posted again. Commenting needs `pull-requests: write` on the job token. On pull requests from forks the token is read-only, so the action logs a warning and skips the comment; the job summary and the files are still written.
 
 ```yaml
       - name: Run security check
@@ -112,6 +115,9 @@ To track findings across PRs, save a baseline on main and diff against it on PRs
 jobs:
   security:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # needed to create/update the PR comment
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

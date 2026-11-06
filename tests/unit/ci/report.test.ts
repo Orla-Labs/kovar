@@ -4,6 +4,7 @@ import {
 	COMMENT_MARKER,
 	buildJsonReport,
 	evaluateGate,
+	parseSeverity,
 	toSarif,
 	upsertPRComment,
 } from "../../../src/ci/report.js";
@@ -180,5 +181,19 @@ describe("upsertPRComment", () => {
 		expect(r).toBe("created");
 		expect(fetchImpl.mock.calls[1]?.[1]?.method).toBe("POST");
 		expect(JSON.parse(fetchImpl.mock.calls[1]?.[1]?.body as string).body).toContain(COMMENT_MARKER);
+	});
+});
+
+describe("parseSeverity (fail-on input)", () => {
+	it("accepts the five severities case-insensitively", () => {
+		expect(parseSeverity("high")).toBe("high");
+		expect(parseSeverity(" High ")).toBe("high");
+		expect(parseSeverity("CRITICAL")).toBe("critical");
+	});
+
+	it("rejects anything else instead of silently never blocking", () => {
+		expect(parseSeverity("hgih")).toBeNull();
+		expect(parseSeverity("")).toBeNull();
+		expect(parseSeverity("error")).toBeNull();
 	});
 });

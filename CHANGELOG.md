@@ -5,6 +5,7 @@
 ### Fixed
 - GitHub Action (`.github/actions/security-check`) now works. It is a composite action that installs `@orlalabs/kovar` and `@playwright/test`, installs Chromium and runs the newly built and shipped `dist/ci/index.js`. Previously the entry was never built or published, crashed on `require` inside ESM, and depended on `playwright-core` without declaring it.
 - With a baseline, the action now fails only on **new** findings; previously `passed` ignored the baseline, so known findings blocked every PR. Findings that report a check could not run (`*-check-error`, `*-check-skipped`, `xss-no-forms`) always block and are never written to a baseline.
+- The action validates `fail-on` (case-insensitive). Previously any value other than an exact lowercase severity (for example `High`) made the gate compare against `undefined`, so nothing ever blocked and the job passed.
 - The action rejects unsupported `checks` values (for example `xss`) instead of silently skipping them and reporting a pass.
 - `@orlalabs/kovar/vite`, `/babel` and `/next` no longer fail with `ERR_MODULE_NOT_FOUND` for `@babel/*` from a clean install: the Babel packages are declared as optional peer dependencies (Babel 7 or 8).
 
